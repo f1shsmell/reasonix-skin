@@ -101,9 +101,9 @@ pwsh -File C:\Dev\reasonix-skin\codex-ink\install.ps1
 > 按**本地代码页**读无 BOM 的 `.ps1`，中文会乱码并让整个脚本语法错位 ——
 > 症状是莫名其妙的 `Get-FileHash is not recognized` 之类。带 BOM 后
 > `pwsh`（7）与 `powershell`（5.1）两条路都验过，都能跑。
-> ② `重新应用.cmd` 里**一个中文字都不能有**：cmd 按本地代码页解析批处理，
-> 连 `rem` 注释里的中文都会被当成命令执行，`chcp 65001` 救不回来。
-> 中文提示交给 `install.ps1` 输出。
+> ② `重新应用.cmd` / `取消应用.cmd` 里**一个中文字都不能有**：cmd 按本地代码页
+> 解析批处理，连 `rem` 注释里的中文都会被当成命令执行，`chcp 65001` 救不回来。
+> 中文提示交给 `install.ps1` / `uninstall.ps1` 输出。
 
 判断"要不要重打"最快的办法：打开 Studio，看**最左那条图标轨**在不在 ——
 它被 Studio 外壳收成 0 宽，只有补丁生效时才会露出来。
@@ -114,6 +114,10 @@ pwsh -File C:\Dev\reasonix-skin\codex-ink\install.ps1
 ```powershell
 pwsh -File uninstall.ps1
 ```
+
+（也可以直接双击 `codex-ink\取消应用.cmd`，它跑的就是同一条命令。
+Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `.cmd` 都会把额外参数
+原样透传给 `.ps1`：`取消应用.cmd -StudioDir "D:\Reasonix Studio"`。）
 
 脚本不改动官方文件本身，只往 `dist/assets/` 放一个新文件、往 `index.html`
 挂一行 link，随时可完全摘掉。
@@ -372,6 +376,8 @@ codex-ink/
   codex-ink.css     覆盖层正本（调色板 / 去彩 / 结构 / 收尾）—— 纯 CSS，无脚本
   install.ps1       打补丁（幂等，-Restore 可还原）
   uninstall.ps1     还原
+  重新应用.cmd      双击跑 install.ps1（Studio 更新后重打用）
+  取消应用.cmd      双击跑 uninstall.ps1（摘掉覆盖层用）
   theme-pack/       主题包（官方机制）：插件清单 + 墨白 / 蓝调两个 theme.json
   preview/          改造前后截图
   tools/            复核用脚本（运行非必需）
