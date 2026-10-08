@@ -1,0 +1,991 @@
+/* Codex Ink — fork 覆盖层
+   ─────────────────────────────────────────────────────────────────────────
+   主题包只能改 23 个令牌（bg / panel / fg / border / accent …），碰不到
+   --net / --deleg / --cat-1..5 / --io-* / 品牌字色 —— 而这些恰恰是界面上
+   "还在彩色"的部分（实测 --net 一个变量就驱动 70 处文字与描边）。
+
+   这一层把**装饰性**彩色压成灰阶，保留 ok / warn / err 的语义色：
+   状态该有的红绿仍在（Codex 自己也为 diff 与错误保留红绿），
+   但"运行中 / 委派 / 分类"这些不承载健康含义的色一律去掉。
+
+   分层结构与 studio.css 一致（:root / 媒体查询 / data-theme 两条），
+   并在 studio.css 之后引入，因此同特异性下由后者胜出。
+
+   调色板也写在这里（第 1 段）：主题包靠内核注入 inline 变量，性能台不加载它，
+   所以自带一份默认值，fork 一跑起来就是 Codex。装了主题包时，
+   inline 变量优先级更高，会盖过这里的默认值 —— 两者可以并存、随时切换。
+*/
+
+/* ── 调色板（Codex Ink 墨白，来自 Codex 实机截图逐像素测量）────────────── */
+:root,
+:root[data-theme="light"] {
+  --page: #ffffff;
+  --surface: #f6f6f6;
+  --raised: #ffffff;
+  --overlay: #f1f1ef;
+  --border: #0d0d0d1f;
+  --hair: #0d0d0d12;
+  --text: #1a1c1f;
+  --muted: #5d5d5d;
+  --faint: #767676;
+  --ghost: #767676;
+  --text-strong: #0d0d0d;
+  --accent: #339cff;
+  --accent-fg: #ffffff;
+  --accent-ink: #339cff;
+  --link: #339cff;
+  --brand: #0d0d0d;
+  --halo: #0d0d0d0f;
+  --label-agent: #5d5d5d;
+  --float: #ffffff;
+  --float-hi: #f1f1ef;
+  --face-code: #f1f1ef;
+  --face-sunk: #f6f6f6;
+}
+
+/* ── 浅色：去彩 ───────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="light"] {
+  /* 装饰角色（Studio 2.29 起，PR #12030）：--link / --brand / --halo /
+     --label-agent 是从 --net / --deleg 里拆出来的独立 token，取值与
+     theme-pack/ 保持一致 —— 链接保留 Codex 蓝，品牌色 / 悬停光晕 /
+     代理名标签收进灰阶。 */
+
+  /* --net / --deleg **不压灰**：拆走装饰角色后，它们只剩**信息**语义
+     （运行中 / 委派 / 连接状态，以及 .hostlab / .hl .src 等 host 标签）。
+     压成灰之后，"运行中"与"委派"就分不出来了。 */
+
+  /* --cat-1..5 与 --io-* 保持官方调色板，**不压灰**：
+     它们只出现在用量可视化里（.ctxbar / .ctxlg / .ctxpop 的 5 段，共 15 条规则），
+     是**信息**而不是装饰 —— 压成灰阶后"系统提示 / 工具定义 / 你的输入 /
+     模型回复 / 工具输出"这五段就分不出谁是谁了。 */
+
+  /* 焦点环跟随强调色（墨黑），比原来的蓝更贴合"零彩色 chrome" */
+  --focus: var(--accent);
+}
+
+/* ── 深色 ─────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #111111;
+    --surface: #0f0f0f;
+    --raised: #181818;
+    --overlay: #212121;
+    --border: #ffffff24;
+    --hair: #ffffff14;
+    --text: #ffffff;
+    --muted: #b4b4b4;
+    --faint: #949494;
+    --ghost: #949494;
+    --text-strong: #ffffff;
+    --accent: #339cff;
+    --accent-fg: #ffffff;
+    --accent-ink: #339cff;
+    --link: #339cff;
+    --brand: #ffffff;
+    --halo: #ffffff12;
+    --label-agent: #b4b4b4;
+    --float: #212121;
+    --float-hi: #282828;
+    --face-code: #1f1f1f;
+    --face-sunk: #0d0d0d;
+    --focus: var(--accent);
+  }
+}
+
+:root[data-theme="dark"] {
+  --page: #111111;
+  --surface: #0f0f0f;
+  --raised: #181818;
+  --overlay: #212121;
+  --border: #ffffff24;
+  --hair: #ffffff14;
+  --text: #ffffff;
+  --muted: #b4b4b4;
+  --faint: #949494;
+  --ghost: #949494;
+  --text-strong: #ffffff;
+  --accent: #339cff;
+  --accent-fg: #ffffff;
+  --accent-ink: #339cff;
+  --link: #339cff;
+  --brand: #ffffff;
+  --halo: #ffffff12;
+  --label-agent: #b4b4b4;
+  --float: #212121;
+  --float-hi: #282828;
+  --face-code: #1f1f1f;
+  --face-sunk: #0d0d0d;
+  --focus: var(--accent);
+}
+
+/* studio.css 在浅色下把品牌强调字写死成 #526a9f，这里收回灰阶。
+   对方是 :root[data-theme="light"] .studio-brand-accent（0,2,1），
+   所以这里必须提权才压得住。 */
+:root .studio-brand-accent {
+  color: var(--text-strong) !important;
+}
+
+/* ── 硬编码的装饰性彩色 ────────────────────────────────────────────────
+   下面这些是 studio.css / app.css 里写死的值，不在令牌体系内，
+   变量层覆盖不到，只能按选择器收回灰阶。语义性的红绿（失败/错误/成功）保留。 */
+
+/* 注：曾经把 .tool-state[data-state="running"] 的"运行中"色收成灰阶，
+   已撤掉 —— 运行态是**状态**，压灰反而看不出它在跑。 */
+
+/* 上下文卡片那五段色标：官方给的是**写死的柔和色**（sys 青 / tool 蓝紫 /
+   reply 绿，user 与 output 官方本来就是灰），这里不要覆盖它们 ——
+   上一轮把 sys/tool/reply 三条并到灰阶的 --cat-* 上，五段就分不出谁是谁了。 */
+.chrome-context-card section > button {
+  color: var(--muted) !important;
+}
+
+/* 定位轨当前段 / 地址栏焦点 / 浏览器脉冲：只保留了与焦点色相关的两条，
+   .srail-m[data-on] > i 原来被压成灰，已撤掉。 */
+.studio-browser-address:focus-within {
+  border-color: var(--focus) !important;
+}
+.chrome .browser-action[aria-pressed="true"] {
+  color: var(--text-strong) !important;
+}
+.flow .opt[data-on] {
+  border-color: var(--focus) !important;
+}
+
+/* 注：曾经把转录里工具调用行的符号（.g .sym，官方浅色下写死 #52689e）
+   压成灰，已撤掉。这条其实也随 .g 一起被 ⑬ 藏了，留着只会是死规则。 */
+
+/* 注：曾经把 .usage 的 --chart（用量图表色）换成灰阶，已撤掉 ——
+   --cat-1 本身已经是蓝，不必再覆盖。 */
+
+/* ── 首次开屏 ──────────────────────────────────────────────────────────
+   .oobe 是一块**恒定**的近黑全屏（与主题无关），所以这里用固定的近白强调，
+   对应 Codex 在深色底上的白色主按钮。不能走 var(--accent)：浅色主题下
+   强调是墨黑，落在近黑底上会看不见。 */
+.oobe {
+  background: #0d0d0d;
+}
+.oobe .onb-go {
+  background: #f5f5f5;
+  color: #0d0d0d;
+  border-color: #f5f5f5;
+}
+.oobe .onb-fix {
+  color: #e5e5e5;
+  background: rgb(255 255 255 / 0.06);
+  border-color: rgb(255 255 255 / 0.18);
+}
+.oobe .onb-fix:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+.oobe .onb-getkey:hover {
+  color: #ffffff;
+  border-bottom-color: rgb(255 255 255 / 0.35);
+}
+.oobe .onb-pick .mi[data-on] .dot,
+.oobe .onb-pick .mi[data-on] .rt {
+  background: #f5f5f5;
+  color: #0d0d0d;
+}
+
+/* ── 浮层：Codex 是"细描边 + 克制投影"，不是大范围柔影 ─────────────────
+   取值直接来自 codex-ink 实测的菜单影（--dsw-codex-menu-shadow）。
+   默认的 --shadow-float 带 16px/40px 的柔光，浮层读起来"毛"，不像 Codex。 */
+:root,
+:root[data-theme="light"] {
+  --shadow-float: 0 8px 32px rgba(13, 13, 13, 0.13), 0 0 0 1px rgba(13, 13, 13, 0.04);
+}
+
+:root[data-theme="dark"] {
+  --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(236, 236, 236, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(236, 236, 236, 0.05);
+  }
+}
+
+/* ══ 结构层（Phase 2b）═══════════════════════════════════════════════════
+   对着 Codex 实机参考图（assets/reference/codex-app-reference.png）逐项对齐。
+   Codex 的侧栏没有胶囊、没有分段控件、图标是中性灰而不是强调色；
+   顶栏也远比我们矮。这里只动外观，不删任何功能。 */
+
+/* ① "新建会话"从填充胶囊改成纯行 —— Codex 的 New chat 就是一行 */
+.studio-new-task {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.studio-new-task:hover {
+  background: var(--overlay) !important;
+  border-color: transparent !important;
+}
+
+/* ② 会话筛选的分段控件去掉底槽，只留文字 */
+.studio-session-segments {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* ③ 侧栏导航图标：Codex 用中性灰，不用强调色 */
+.studio-new-task > span,
+.studio-search > span,
+.studio-quicknav button > span {
+  color: var(--muted) !important;
+}
+
+/* ④ 顶栏压矮（54 → 44px），左右内边距收紧 */
+.chrome {
+  height: 44px !important;
+  padding: 0 12px !important;
+}
+
+/* ⑤ 卡片圆角提一档，贴近 Codex 的大圆角 */
+:root,
+:root[data-theme="light"],
+:root[data-theme="dark"] {
+  --r-lg: 18px;
+}
+
+/* ⑥ 视图页签去掉"胶囊"分段控件感 —— Codex 没有这种元素，
+   它的导航靠文字颜色与字重区分，选中项没有底色。
+   （.tab 是「对话 / 工作台」这组；.ptab 是窗格标签，另一回事） */
+.tab[aria-selected="true"],
+.tab.on {
+  background: transparent !important;
+  /* studio.css 用 inset 描边画了圈，那才是看到的"胶囊" */
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+.tab[aria-selected="false"] {
+  color: var(--muted) !important;
+}
+/* 页签条原来压着一条浅灰横带（--surface 半透明），Codex 没有这条 */
+.tabs {
+  background: var(--page) !important;
+}
+.ptab[aria-selected="true"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+
+/* ⑦ 用户消息气泡：最新 Codex 里它是**浅蓝**的 —— chrome 无彩色，但"我说的那句话"
+   和发送按钮是这一抹蓝。我们原本是白卡 + inset 高光。 */
+:root,
+:root[data-theme="light"] {
+  --cx-bubble: #dce9fd;
+}
+:root[data-theme="dark"] {
+  --cx-bubble: #1e3a5c;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cx-bubble: #1e3a5c;
+  }
+}
+
+.call[data-k="me"] .out .txt {
+  background: var(--cx-bubble) !important;
+  /* 上一轮只清了 inset 高光（box-shadow），留下一圈 1px solid rgba(13,13,13,.12)
+     的描边 —— Codex 的浅蓝气泡是一块纯色，没有边线。 */
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 18px !important;
+  padding: 10px 14px !important;
+}
+
+/* ⑧ 侧栏里的应用级入口不再各占一行。
+   上一轮是删 JSX（文件 / 工具与集成 / 运行环境 移到左轨，发送反馈与账户行删掉）；
+   这一轮只打 CSS 补丁：.studio-quicknav 整块隐藏、.railfoot 只留账户行（见文末 ㉕）。
+   这几个入口在设置里都有同一处（data-action="settings.section"）。 */
+
+/* 图标轨上的未读徽标（.navbadge）随上一轮的 Nav.tsx 改动一起作废：
+   2.27 的图标轨里没有这个元素 —— 未读提示走 .account-presence 那套。
+   规则已删，留着只会是死代码。 */
+
+/* ⑨ 恢复最左的图标轨 —— Codex 最显眼的结构特征。
+   Nav.tsx 与整套 .nav / .navbtn 样式本来就在仓库里（app.css:1987+），
+   是 Studio 外壳把它收成 0 宽并 display:none 了。这里只把它放回来，
+   并把选中态从"白底方块 + 左侧竖条"改成 Codex 的"图标本身变深"。 */
+.app {
+  --nav-w: 48px !important;
+}
+.nav {
+  display: flex !important;
+  background: var(--page) !important;
+  border-right-color: var(--hair) !important;
+}
+.cols {
+  grid-template-columns: var(--nav-w) var(--rail-w) minmax(0, 1fr) var(--side-w) !important;
+}
+.navbtn[aria-current] {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+.navbtn[aria-current]::before {
+  display: none !important;
+}
+
+/* 侧栏是 position:fixed + inset:0 auto 0 0（studio.css:479），钉在 x=0 且 z-index:12，
+   所以它会**盖住**图标轨 —— 轨道在网格里排好了却看不见。
+   把它整体右移一个 --nav-w，正好落在网格第 2 列。 */
+.rail {
+  left: var(--nav-w) !important;
+}
+
+/* ⑩ 顶栏右侧：把"沙盒"的文字标签收成纯图标 —— 带字的按钮最显拥挤。
+   注：这里原本还把 .phone-action（设备访问 / 手机直连，也就是界面上的
+   "远程连接"按钮）一并隐藏了，已按要求恢复 —— 那是**功能入口**，
+   不该为了更像 Codex 而拿掉。 */
+.chrome .top-action {
+  width: 28px;
+  padding: 0;
+}
+.chrome .top-action span {
+  display: none !important;
+}
+
+/* ⑪ 侧栏头部收成一行：品牌 + 搜索（对应 Codex 的 "Codex ⌄ 🔔 🔍"）。
+   2.27 的 DOM 里 .studio-search 是品牌行**下面**独立的一行
+   （.studio-brand → .studio-new-task → .studio-search，实测头部因此有 60px，
+   而上边栏只有 44px）。上一轮是改 Sidebar.tsx 把它搬进品牌行；
+   这一轮只打 CSS 补丁，所以这里只留按钮自身的样子，
+   搬运与齐平见文末「侧栏头部收成一行」。 */
+.studio-search {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--ghost);
+}
+.studio-search:hover {
+  color: var(--text);
+  background: var(--overlay);
+}
+.studio-search .studio-icon {
+  width: 14px;
+  height: 14px;
+}
+.studio-search > span {
+  display: grid;
+  place-items: center;
+  color: inherit !important;
+}
+.studio-search b.studio-label,
+.studio-search kbd {
+  display: none !important;
+}
+.studio-collapse {
+  margin-left: 2px;
+}
+
+/* ⑫ 会话列表按 Codex 的密度收：
+   · 标题单行省略（原本 clamp 到 2 行，长标题一折整列就散了）
+   · 行高 42 → 32px
+   · 去掉"2 个项目 / 6 会话"这类计数 —— Codex 的列表里没有数字 */
+.rail .sesstitle > span {
+  display: block;
+  -webkit-line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.rail .sessrow {
+  min-height: 30px !important;
+}
+.rail .wsmeta,
+.rail .rmtsub {
+  display: none !important;
+}
+
+/* ⑬ 对话保持简洁：助手每条回复不再带 [R] 图标和 "reasonix" 署名。
+   [R] 是 studio.css 用 .sym::after { content:"R" } 画的方块；
+   .nm 是那句署名。模型名（.src）留着 —— 它说明这条是哪个模型写的。 */
+.flow .call[data-k="say"] > .g {
+  display: none !important;
+}
+.flow .call[data-k="say"] > .c > .hl {
+  padding-left: 0 !important;
+  min-height: 0 !important;
+  margin-bottom: 6px !important;
+}
+.flow .call[data-k="say"] > .c > .hl .nm {
+  display: none !important;
+}
+
+/* ⑭ 侧栏头部：去掉品牌方块，只留字；并与上边栏对齐（同高，连成一片）。 */
+.studio-brand-mark {
+  display: none !important;
+}
+.studio-brand {
+  padding-left: 0;
+}
+.studio-rail-head {
+  padding: 8px 12px 8px !important;
+}
+
+/* ⑮ 底色照 Codex：左轨浅灰、侧栏与上边栏同为白，三块连成一片。 */
+.nav {
+  background: var(--surface) !important;
+}
+.rail {
+  background: var(--page) !important;
+}
+
+/* ⑯ 左轨图标悬停要有指示 —— 原来 hover 用 --raised（白），落在白底上看不见。 */
+.navbtn {
+  color: var(--muted);
+}
+.navbtn:hover {
+  background: var(--overlay) !important;
+  color: var(--text) !important;
+}
+
+/* ⑰ 顶栏横跨整个宽度，与左轨连成一个灰色"L"。
+   <Chrome> 本来就是 .app 的第一个子元素（在 .cols 之前），
+   只是 studio.css:495 用 margin-left: var(--rail-w) 把它推到了侧栏右边 ——
+   于是收起侧栏时它会跟着左移，那个 ☰ 的位置就一直在变。
+   去掉这个 margin，顶栏成为通栏一行：☰ 钉在窗口左上角不再移动，
+   左轨与侧栏都从它下面开始，上面的灰与左边的灰连成一片。 */
+.app {
+  --chrome-h: 44px !important;
+}
+.chrome {
+  margin-left: 0 !important;
+  height: var(--chrome-h) !important;
+  background: var(--surface) !important;
+  border-bottom-color: var(--hair) !important;
+}
+.rail {
+  top: var(--chrome-h) !important;
+}
+
+/* 头部回到白底：灰只留给"外壳"（顶栏 + 左轨），
+   侧栏正文与头部都是白的 —— 与 Codex 的分工一致。 */
+.studio-rail-head {
+  padding: 12px 12px 8px !important;
+  background: var(--page);
+}
+.studio-brand {
+  padding-bottom: 0 !important;
+}
+.studio-new-task {
+  margin-top: 8px;
+}
+
+/* 切换按钮只留顶栏那一个（位置固定）。侧栏头部这个会随侧栏一起移动，去掉。 */
+.studio-collapse {
+  display: none !important;
+}
+
+/* ⑲ 用户气泡的蓝色：用户给了准确值 rgb(232, 243, 254)。 */
+:root,
+:root[data-theme="light"] {
+  --cx-bubble: #e8f3fe;
+}
+
+/* ⑳ 标注区域配色（按用户截图）：
+   红框 = 顶栏 + 最左图标轨，固定 #F6F6F6（Codex 的 chrome 灰）；
+   蓝框 = 侧栏 + 视图页签，恢复为主题的页面色（墨白浅色下为纯白）。
+   左轨/侧栏之间不画分隔线。 */
+:root,
+:root[data-theme="light"] {
+  --chrome-surface: #f6f6f6;
+}
+/* 顶栏的底色与那条发丝线，见文末「顶栏：底色 + 底部一条线」—— 那是 2.27 实测后
+   重写的版本。这里只留"不要默认的整条底边线"，因为左上角（左轨正上方）不该有线。 */
+.chrome {
+  border-bottom: 0 !important;
+}
+.chrome .studio-menu {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  margin-left: -6px !important;
+}
+.nav {
+  border-right: none !important;
+  background: var(--chrome-surface, var(--surface)) !important;
+}
+.rail,
+.studio-rail-head,
+.tabs {
+  background: var(--page) !important;
+}
+.tabs {
+  border-bottom: none !important;
+  padding-top: 2px !important;
+  padding-bottom: 4px !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chrome-surface: #0f0f0f;
+  }
+}
+:root[data-theme="dark"] {
+  --chrome-surface: #0f0f0f;
+}
+
+/* 面包屑上的文件夹图标：上一轮把它改成了"打开项目文件夹"按钮（.reveal-action），
+   那是 Chrome.tsx 里新增的元素。这一轮不改 JSX，2.27 的 DOM 里它仍是纯装饰的
+   <svg>（实测 .crumb > svg 16x16），所以那两条规则已删。 */
+
+/* ══ 第二轮（顶栏 / R标 / 圆角 / 侧栏底 / 缓冲色）══════════════════════ */
+
+/* ㉑ 顶栏与最左图标轨同为 246（上一段已各自落到 --chrome-surface，
+   这里不再重涂）。侧栏一列照 Codex 涂 252：比页面白暗半档、比外壳 246
+   亮半档，三块各有各的底。252 与 255 只差半档，边界靠发丝线立起来。 */
+:root,
+:root[data-theme="light"] {
+  --rail-surface: #fcfcfc;
+}
+:root[data-theme="dark"] {
+  --rail-surface: #0f0f0f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --rail-surface: #0f0f0f;
+  }
+}
+.rail,
+.studio-rail-head {
+  background: var(--rail-surface) !important;
+}
+/* studio.css 在浅色区有 :root[data-theme="light"] .rail 的白底 !important
+   （0,2,0），同权重下按源序它更早，这里必须同特异性才能压住。 */
+:root[data-theme="light"] .rail,
+:root[data-theme="light"] .studio-rail-head {
+  background: var(--rail-surface) !important;
+}
+:root[data-theme="dark"] .rail,
+:root[data-theme="dark"] .studio-rail-head {
+  background: var(--rail-surface) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root .rail,
+  :root .studio-rail-head {
+    background: var(--rail-surface) !important;
+  }
+}
+.rail {
+  border-right: 1px solid var(--hair) !important;
+}
+
+/* ㉒ 缓冲色（需求5）：Codex 的每块色面靠 1px 发丝线从同色底里读出来，
+   不靠投影。--cx-line 比 --border 再淡半档，是这层线的公共取值。 */
+:root,
+:root[data-theme="light"] {
+  --cx-line: #0d0d0d14;
+}
+:root[data-theme="dark"] {
+  --cx-line: #ffffff1f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cx-line: #ffffff1f;
+  }
+}
+
+/* composer 是白卡 + 发丝描边；studio.css 在浅色下把它写死成 --surface 灰卡
+   （:root[data-theme="light"] .compose，0,2,1），所以两套特异性都要压。 */
+.compose,
+:root .compose {
+  background: var(--page) !important;
+  box-shadow: none !important;
+}
+:root[data-theme="light"] .compose {
+  background: var(--page) !important;
+  box-shadow: none !important;
+}
+:root[data-theme="dark"] .compose {
+  background: var(--raised) !important;
+  box-shadow: none !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root .compose {
+    background: var(--raised) !important;
+    box-shadow: none !important;
+  }
+}
+.compose::after {
+  border-color: var(--cx-line) !important;
+}
+:root[data-theme="light"] .compose::after {
+  border-color: var(--cx-line) !important;
+}
+.compose:hover::after {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--cx-line)) !important;
+}
+:root[data-theme="light"] .compose:hover::after {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--cx-line)) !important;
+}
+.compose:focus-within::after {
+  border-color: color-mix(in srgb, var(--text) 42%, var(--cx-line)) !important;
+}
+:root[data-theme="light"] .compose:focus-within::after {
+  border-color: color-mix(in srgb, var(--text) 42%, var(--cx-line)) !important;
+}
+
+/* ㉓ 圆角照 Codex 档位收一遍：大面 16-18（composer / 卡片已有 --r-lg），
+   行填 8 —— 会话行提一档到 8px。composer 内的条带都是透明底，
+   填色不触边，无需 overflow 裁切。 */
+.rail .sessrow {
+  border-radius: 8px !important;
+}
+
+/* ㉔ 外壳不透底：插画包把 data-bg 打开后，studio.css 会把顶栏和侧栏磨砂成
+   半透明、染上氛围色（实测顶栏 230、左轨 246 —— 同一个壳两个色）。
+   壳是 fork 固定结构，照 20/21 的平面色走满；氛围层只留给内容区。 */
+:root[data-bg] :is(.chrome, .nav),
+:root[data-theme="light"][data-bg] :is(.chrome, .nav),
+:root[data-theme="dark"][data-bg] :is(.chrome, .nav) {
+  background: linear-gradient(to right, transparent 48px, var(--hair) 48px) left 100% / 100% 1px no-repeat,
+    var(--chrome-surface, var(--surface)) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+:root[data-bg] :is(.rail, .side),
+:root[data-theme="light"][data-bg] :is(.rail, .side),
+:root[data-theme="dark"][data-bg] :is(.rail, .side) {
+  background: var(--rail-surface, var(--page)) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ══ 四级文字色必须提权（2.27 实测）═════════════════════════════════════
+   src/ui/theme.ts 的 apply() 把 STEPS 里的四个 ink 变量内联写到 <html> 上：
+
+     for (const name of Object.keys(STEPS)) {          // fg / fgStrong / fgDim / fgFaint
+       const authored = pack?.tokens[scheme]?.[name];
+       const from = authored || base.getPropertyValue(SURFACE[name][0]).trim();
+       if (!authored && from) root.style.setProperty(v, ink(from, name, scheme, contrast));
+     }
+
+   实测：套上本文件后 --page 从 #efefec 变成 #ffffff，而 --text 纹丝不动，仍是
+   默认的 #292b29 —— 就是被这行内联盖住的。内联样式对任何选择器都更高优先，
+   外部样式表要改这四个只能 !important。
+
+   代价：装上主题包（主题包也走 apply() 内联）时，这四个会被这里钉住。
+   覆盖层的取舍本来就是"外观恒定"，其余变量都留给主题包。
+
+   不在 STEPS 里的变量（--page / --surface / --raised / --overlay / --border /
+   --hair / --accent / --accent-fg / --float / --face-* / --net / --deleg …）
+   App 不内联写，普通声明即可生效，无需提权。 */
+:root,
+:root[data-theme="light"] {
+  --text: #1a1c1f !important;
+  --text-strong: #0d0d0d !important;
+  --muted: #5d5d5d !important;
+  --faint: #767676 !important;
+  --ghost: #767676 !important;
+}
+:root[data-theme="dark"] {
+  --text: #ffffff !important;
+  --text-strong: #ffffff !important;
+  --muted: #b4b4b4 !important;
+  --faint: #949494 !important;
+  --ghost: #949494 !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --text: #ffffff !important;
+    --text-strong: #ffffff !important;
+    --muted: #b4b4b4 !important;
+    --faint: #949494 !important;
+    --ghost: #949494 !important;
+  }
+}
+
+/* ══ 侧栏头部收成一行 + 与上边栏齐平（2.27 版）══════════════════════════
+   Codex 的侧栏头部是一行 "Codex ⌄ 🔔 🔍"：品牌在左、搜索在右。
+   我们的 DOM 是三行（品牌行 / 新建会话 / 搜索行），实测头部 60px，而
+   .chrome 只有 44px —— 底边不齐，收起/展开侧栏时那个按钮还会上下跳。
+
+   上一轮靠改 Sidebar.tsx 把 .studio-search 搬进 .studio-brand 解决；
+   这一轮只打 CSS 补丁，改用绝对定位把它钉到品牌行右侧，效果等价。
+   .studio-collapse 已被下面 ⑰ 隐藏，右侧正好让出来。 */
+.studio-rail-head {
+  position: relative;
+  padding: 10px 12px 8px !important; /* 10 + 26 + 8 = 44，与 .chrome 等齐 */
+}
+.studio-brand {
+  padding: 0 !important;
+  padding-right: 30px !important; /* 给右侧搜索图标让位 */
+  min-height: 0 !important;
+  height: 26px;
+}
+.studio-search {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+}
+
+/* 应用级入口（文件 / 工具与集成 / 运行环境）不再占侧栏的行。
+   Codex 的侧栏只有「新聊天 → 项目 → 最近」，没有这三项；
+   它们的 data-action 都是 settings.section，在设置里有同一入口。 */
+.studio-quicknav {
+  display: none !important;
+}
+
+/* ══ 顶栏面包屑：会话名回到项目名旁边 ═══════════════════════════════════
+   .crumb-proj 是 flex: 1 1 auto（app.css），把剩余空间全吃掉，
+   于是 " / 会话名" 被顶到顶栏最右端（实测 crumbsep 在 x=1379），
+   读起来像是右侧动作区的标签。Codex 是 [文件夹] 项目名 / 会话名 一起靠左。 */
+.crumb .crumb-proj {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ══ 收尾（2.27 版）═════════════════════════════════════════════════════ */
+
+/* ㉕ 侧栏脚整块去掉。
+   .railfoot 里是三样：「钱包与用量」「发送反馈」「账户行」（外加它们的上下分隔线）。
+   Codex 的侧栏到会话列表就结束了，底部没有这一块。
+   这几个入口都不缺：
+     · 余额     → 底部状态条的 .studio-meter-wallet
+     · 发送反馈 → 左轨图标轨 .navgrp.foot
+     · 账号/登录 → 左轨底部的设置，进去第一项就是登录
+   上一轮是删 JSX，这一轮只打 CSS 补丁，所以整块隐藏（连分隔线一起）。 */
+.railfoot {
+  display: none !important;
+}
+
+/* ㉖ 暗色的三段层次。
+   浅色下外壳 246 / 侧栏 252 / 内容 255 三档分得开；暗色若照抄同一组取值，
+   --chrome-surface 与 --rail-surface 会一起落到 #0f0f0f —— 实测「顶栏 / 左轨 /
+   侧栏」三块全是 rgb(15,15,15)，糊成一片，Codex 那种"灰壳 + 白面"的分工没了。
+   暗色里"后退"是更暗、"前进"是更亮，所以侧栏比内容区亮半档： */
+:root[data-theme="dark"] {
+  --rail-surface: #161616;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rail-surface: #161616;
+  }
+}
+
+/* ㉗ 空态照 Codex 放一号。
+   Codex 打开时中间是一枚很大的幽灵 logo + 一行大标题；
+   我们这枚 .mk 只有 30x30，读起来像个图标而不是"品牌在此"。 */
+.panes-empty .mk {
+  width: 64px;
+  height: 64px;
+}
+.panes-empty .t {
+  font-size: 26px;
+  line-height: 1.25;
+}
+.panes-empty .h {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ══ 顶栏：底色 + 底部一条线（2.27 实测重写）══════════════════════════════
+   上一轮的写法是分开声明：
+
+     .chrome { background-color: …; background-image: linear-gradient(…); 
+               background-position: left bottom;
+               background-size: 100% 1px;
+               background-repeat: no-repeat; }
+
+   形状上没问题，但 studio.css 里有一条
+   `:root[data-theme="light"] .chrome { background: … !important }` —— 它是
+   **shorthand**，特异性 (0,2,0) 又压过 `.chrome` (0,1,0)，于是把单独写的
+   background-size / position / repeat 一律重置回默认值。实测计算样式：
+
+     backgroundSize: auto        backgroundPosition: 0% 0%      backgroundRepeat: repeat
+
+   渐变于是铺满整条顶栏（原本只想画最底下 1px），从 x=48 起整片叠上 7% 的黑：
+   顶栏量到 rgb(229,229,229)，而左轨是 rgb(246,246,246) —— 肉眼就是"顶栏和左轨有色差"。
+
+   修法：整条 background 一起写（shorthand 里 size/position/repeat 都跟着走），
+   并站在同特异性 (0,2,0) 的选择器上；源序在本文件最后，所以同权重时我们胜出。 */
+:root .chrome,
+:root[data-theme="light"] .chrome,
+:root[data-theme="dark"] .chrome {
+  background:
+    linear-gradient(to right, transparent 48px, var(--hair) 48px) left bottom / 100% 1px no-repeat,
+    var(--chrome-surface, var(--surface)) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .chrome {
+    background:
+      linear-gradient(to right, transparent 48px, var(--hair) 48px) left bottom / 100% 1px no-repeat,
+      var(--chrome-surface, var(--surface)) !important;
+  }
+}
+
+/* ══ 左轨底部 ════════════════════════════════════════════════════════════ */
+
+/* ㉘ 删掉「会话」那一格（左轨的第一个图标）。
+   它唯一的作用是把设置面板关掉，而设置面板自己就有返回 ——
+   一格图标换一次返回，代价大于收益。（上一轮是删 JSX，这一轮只打 CSS。） */
+.navgrp:not(.foot) > .navbtn:first-child {
+  display: none !important;
+}
+
+/* ㉙ 反馈按钮搬到左轨底部（账号钮上方），连同它的未读数徽标。
+   左轨里没法凭空加元素，但侧栏脚里正好有一个**真的** feedback.open 按钮
+   （.railfoot .studio-feedback，里面还带着 <i.fbk-badge> 未读数）。
+   做法：.railfoot 不再整块隐藏，而是收成 0 高、只让这一个按钮绝对定位
+   跑到左轨那一列去。
+   .rail 是 position:fixed（左边缘在 x=48），所以 left:-42px 正好落在左轨
+   （x=6，与 .navbtn 同轴）；bottom 与 .navgrp.foot 一样贴着窗口底，
+   因此窗口高度变化时两者的相对位置不变。 */
+.railfoot {
+  display: block !important;
+  position: static !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  overflow: visible !important;
+}
+.railfoot > .studio-wallet:not(.studio-feedback),
+.railfoot > .studio-user-foot {
+  display: none !important;
+}
+.railfoot .studio-feedback {
+  /* 这里必须用 fixed 而不是 absolute：
+     .rail 是 position:fixed + **overflow:hidden**，absolute 会相对它定位，
+     而按钮要落在它左边界之外（左轨在 x=6，.rail 从 x=48 起）—— 会被裁掉。
+     getBoundingClientRect() 照样报 6,871 36x36，但根本不参与绘制，
+     肉眼就是"这个按钮不存在"。（命中测试一测便知：该点命中的是 nav.nav。）
+     fixed 的 containing block 是视口，祖先的 overflow 裁不到它。 */
+  position: fixed;
+  left: 6px;
+  bottom: 93px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  /* 这里要用 flex、并清掉 gap：
+     studio.css 的 .studio-wallet 本来是"图标 + 文字 + 徽标"的三列网格，
+     只改 display 不改模板的话，图标会被塞进**第一列**（窄）左对齐 ——
+     实测图标落在 x=7，而按钮是 6..42，肉眼看就是"这一格没跟上面两格对齐"。
+     flex 只认 align/justify，不受 grid-template-columns 影响。 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0 !important;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+.railfoot .studio-feedback:hover {
+  background: var(--overlay);
+  color: var(--text);
+}
+.railfoot .studio-feedback > span {
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+.railfoot .studio-feedback > b {
+  display: none !important; /* 左轨只放图标，"发送反馈"四个字留给提示 */
+}
+.railfoot .studio-feedback svg {
+  width: 17px;
+  height: 17px;
+}
+/* 左轨每一格都有悬停提示（.navhint），搬过来的这个也得有 ——
+   原按钮的文字被收掉了，改用伪元素画一个同样形态的提示。 */
+.railfoot .studio-feedback::after {
+  content: "发送反馈";
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--text-strong);
+  color: var(--page);
+  font: 500 11px/1.4 var(--ui);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.railfoot .studio-feedback:hover::after {
+  opacity: 1;
+}
+/* 未读数徽标：原按钮是 236px 宽的一行，徽标挂在行的右端；
+   缩到 36px 的方块后要挪到右上角才读得出来。 */
+.railfoot .studio-feedback .fbk-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  margin: 0;
+}
+
+/* ㉚ 面包屑上那个文件夹图标：维持官方原样的**装饰**，不挂任何动作。
+
+   这里起初想把它做成"打开项目文件夹"的按钮，试了三条路，结论是——在现有宿主
+   之下做不到。留白并把推演记在这儿，免得以后再走一遍：
+
+   ① 纯 CSS 不可行。CSS 没有事件机制：没有 :click，:target 只改样式不触发动作，
+      也没有任何能唤起文件管理器的 URL。"换图标"确实是纯外观，但"点击打开"是行为，
+      跟图标长什么样无关。
+   ② 搬一个现成按钮也不行。工作台面板头部有个常驻的
+      data-action="workbench.reveal"（title 就是"在系统文件管理器中显示工作区"，
+      WorkbenchPanel.tsx:655 传的是 reveal("")，即工作区根目录），但官方这条把它关着：
+          .pane:has(>.pbody[data-dock]) .workbench-body:not([data-files]) .workbench-explorer { display:none }
+      用 !important 把 display 掰回 block 之后，它的 getBoundingClientRect() 确实落在
+      50,11 22x22 —— 可**它仍然不参与绘制**：该点的堆叠实测只有 .crumb > .chrome > .app，
+      按钮根本不在列表里。它那条分支挂在外层低层级里，再被折叠容器裁一刀，
+      等于既看不见也点不着。
+   ③ 写脚本调官方动词，语义也对不上：
+        · revealWorkspace → 主进程 `shell.showItemInFolder(found.target)`，
+          即"打开**父**目录并选中该项"（Windows 上就是 explorer /select），
+          所以点 C:\Dev\reasonix-skin 会停在 C:\Dev，与官方右键菜单那一项行为完全一致；
+        · 想改用 openExternal("file:///…") 直接进目录 —— 被主进程的 externalTarget
+          拦掉，它只放行 http/https（注释写明"链接来自模型输出，不能把 scheme 的
+          选择权交给它"）；
+        · shell.openPath 整个 app.asar 里 0 命中，根本没暴露。
+
+   要真正"点一下进入项目目录"，只能 fork 改 Electron 主进程。 */
+
+/* ㉛ 顶栏 ☰（展开 / 隐藏侧栏）的悬停提示。
+   官方这个按钮只有 aria-label、**没有 title**（Chrome.tsx:58），所以 hover 什么都不弹；
+   顶栏其他按钮都有 title，只有它是光秃秃的。
+   而它的状态就写在 aria-pressed 上（aria-pressed={rail}），于是纯 CSS 也能给出
+   随展开/收起切换的文案 —— 不需要脚本。
+   .chrome 实测是 position:relative + overflow:visible，提示放得下不会被裁。 */
+.chrome .studio-menu {
+  position: relative;
+}
+.chrome .studio-menu::after {
+  content: "收起侧栏";
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  background: var(--text-strong);
+  color: var(--page);
+  font: 500 11px/1.4 var(--ui);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 40;
+}
+.chrome .studio-menu[aria-pressed="false"]::after {
+  content: "展开侧栏";
+}
+.chrome .studio-menu:hover::after {
+  opacity: 1;
+}
+

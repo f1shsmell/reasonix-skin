@@ -1,0 +1,9 @@
+{
+  "apiVersion": "reasonix.io/plugin/v2",
+  "name": "codex-ink",
+  "version": "1.1.0",
+  "description": "Codex 观感的 Reasonix Studio 主题包：零彩色 chrome，墨白灰阶即层级。含墨白主方案与蓝调备选。1.1.0 起使用 Studio 2.29 的装饰角色 token（link / brand / halo / labelAgent）。",
+  "contributes": {
+    "themes": ["codex-ink/theme.json", "codex-ink-blue/theme.json"]
+  }
+}

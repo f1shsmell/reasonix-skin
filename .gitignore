@@ -1,0 +1,13 @@
+# Reasonix 本机会话数据（剪贴板附件、任务日志、快照）——不发布
+.reasonix/
+
+# 旧版本与一次性草稿：截图与试验脚本，共约 52MB ——不发布
+old/
+
+# 系统与编辑器噪声
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+.idea/
+.vscode/
