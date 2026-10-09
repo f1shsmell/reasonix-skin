@@ -307,8 +307,13 @@
 /* ⑨ 恢复最左的图标轨 —— Codex 最显眼的结构特征。
    Nav.tsx 与整套 .nav / .navbtn 样式本来就在仓库里（app.css:1987+），
    是 Studio 外壳把它收成 0 宽并 display:none 了。这里只把它放回来，
-   并把选中态从"白底方块 + 左侧竖条"改成 Codex 的"图标本身变深"。 */
-.app {
+   并把选中态从"白底方块 + 左侧竖条"改成 Codex 的"图标本身变深"。
+
+   2.33 起外壳用 data-nav="off" 表达"这一格此刻不该出现"：Nav.tsx 会把元素
+   标成 inert，宽度交给 --nav-w: 0px 收起。此时若还钉 48px，用户选「收起」
+   或「关闭」就会留下一条空白轨，或一条看得见却点不动的轨。所以只在外壳
+   没有明说 off 时才钉 —— 2.27 根本没有 data-nav 属性，照样命中。 */
+.app:not([data-nav="off"]) {
   --nav-w: 48px !important;
 }
 .nav {
@@ -318,6 +323,18 @@
 }
 .cols {
   grid-template-columns: var(--nav-w) var(--rail-w) minmax(0, 1fr) var(--side-w) !important;
+}
+/* Studio 2.32 起，studio 层改用**显式列放置**把三块面板钉进轨道
+   （studio.css：.nav → 2、.main → 3、.side → 4），并把 .cols 的列序
+   改写成 `--rail-w --nav-w minmax(0,1fr) --side-w`（侧栏轨在前）。
+   皮肤既然自己钉了列序 [--nav-w][--rail-w][1fr][--side-w]，就必须同步钉
+   放置，否则图标轨会落进第 2 轨 = 264px 的侧栏轨，与 fixed 的 .rail
+   整体重叠（2.32 实测：nav 由 0,44 48x956 变成 48,44 264x956）。 */
+.nav {
+  grid-column: 1 !important;
+}
+.main {
+  grid-column: 3 !important;
 }
 .navbtn[aria-current] {
   background: transparent !important;
@@ -465,6 +482,16 @@
 }
 .rail {
   top: var(--chrome-h) !important;
+}
+/* Studio 2.33 把左轨（.nav）改成了 position:fixed 的**全高**贴边层：
+   inset:0 auto 0 0，靠 padding-top: calc(--chrome-h + 8px) 把图标压到顶栏下方。
+   顶栏一改成通栏，这一层就盖住了顶栏左端的 ☰（命中测试从 path 变成 nav.nav）。
+   这里把它也按顶栏高度下移，并把 padding 收回 8px —— 图标落点与旧版一致
+   （44 + 8 = 52）。旧版（2.27 / 2.32）的左轨是流内元素（position:static），
+   top 不生效、padding-top 本来就是 8px，所以对它们没有副作用。 */
+.nav {
+  top: var(--chrome-h) !important;
+  padding-top: 8px !important;
 }
 
 /* 头部回到白底：灰只留给"外壳"（顶栏 + 左轨），
@@ -836,10 +863,23 @@
    （.railfoot .studio-feedback，里面还带着 <i.fbk-badge> 未读数）。
    做法：.railfoot 不再整块隐藏，而是收成 0 高、只让这一个按钮绝对定位
    跑到左轨那一列去。
-   .rail 是 position:fixed（左边缘在 x=48），所以 left:-42px 正好落在左轨
-   （x=6，与 .navbtn 同轴）；bottom 与 .navgrp.foot 一样贴着窗口底，
-   因此窗口高度变化时两者的相对位置不变。 */
-.railfoot {
+
+   **2.33 起这一段整体作废**：官方 Nav.tsx 自己就把 feedback 钮放进了左轨
+   .navgrp.foot 的第一格（还带着 FeedbackBadge 未读数）。那时若还照搬，
+   同一格里就是两个反馈图标 + 两个徽标 —— 实测皮肤搬来的那个在 6,871
+   36x36，官方的在 6,876 36x36，交叠 36x31，截图里正是"图标重叠"。
+   所以整段用 :has() 加了前提：**左轨里已经有 data-action="feedback.open"
+   就一律不搬**，.railfoot 留给上面的 ㉕ 段整块隐藏（2.33 的反馈入口
+   一个都没少，只是不再由皮肤代劳）。
+   判据不能看 data-nav —— 那个属性 2.32 就有了，区分不出这两代。
+   也不能只看"没有 feedback 入口"：2.33 把左轨整个关掉时（data-nav="off"）
+   .nav 会从 DOM 上摘掉，:has() 一样问不到 feedback，那时必须继续藏着
+   .railfoot，否则会有一个反馈钮孤零零挂在屏幕左沿。所以前提是两句：
+   :has(.nav)（左轨在）且 not(:has(...feedback.open))（它自己没有反馈入口）。
+   只需要给「.railfoot 本身」那两条规则加前缀：.railfoot 一旦被 ㉕ 藏成
+   display:none，挂在它下面的 .studio-feedback 那一组规则再匹配也画不出来，
+   所以下面那些规则不用跟着改。 */
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot {
   display: block !important;
   position: static !important;
   height: 0 !important;
@@ -850,8 +890,8 @@
   background: none !important;
   overflow: visible !important;
 }
-.railfoot > .studio-wallet:not(.studio-feedback),
-.railfoot > .studio-user-foot {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot > .studio-wallet:not(.studio-feedback),
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot > .studio-user-foot {
   display: none !important;
 }
 .railfoot .studio-feedback {
