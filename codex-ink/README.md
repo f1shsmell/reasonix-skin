@@ -118,6 +118,76 @@ Select-String -Path "$env:LOCALAPPDATA\Programs\Reasonix Studio\resources\fronte
 > 正式功能**（`data-nav` 控制、默认开），不打补丁也在 —— 两版都有轨，
 > 看不出区别。见第三节「2.33 复核」。
 
+### 更新日志：Studio 每次升级，本项目跟着改了什么
+
+按版本倒序。每一轮都是同一套流程：从官方 `studio` 分支取对应 tag 的源码 →
+构建性能台 → Playwright 量计算样式与命中测试 → 只改 `codex-ink.css`。
+`install.ps1` 的注入方式**与版本无关**，这几轮升级从未为它改过一行。
+
+**2.33.0**（本轮，2026-10-09）
+
+升级本身先把补丁抹了：`dist\index.html` 整个换成新版、`dist\assets\` 里我们放的
+`codex-ink.css` 也被清掉 —— 重跑一次 `install.ps1` 即恢复（`v=2dc86e87`，
+与源文件 SHA256 一致）。除此之外改了四处，全在 `codex-ink.css`：
+
+1. **类名零改名**：覆盖层引用的 99 个类名与 2.33 主样式表
+   `assets/index-Qz3Px4FQ.css`、JS bundle 对照后全部命中（未命中的 5 个只在
+   注释里）。真正变的是**外壳的布局层**。
+2. **图标轨从"被收成 0 宽"变成 Studio 的正式功能**：2.27/2.32 里外壳把 `.nav`
+   写成 `display:none`，是补丁把它放出来的；2.33 起它本身就是左边缘一条全高
+   固定层（`position:fixed; inset:0 auto 0 0`），会盖住通栏顶栏左端的 ☰ ——
+   命中测试由 `path` 变成 `nav.nav`。补 `.nav { top: var(--chrome-h) }`，
+   并把 `padding-top` 收回 8px，图标落点与旧版一致（44 + 8 = 52）。
+3. **列序与显式放置沿用 2.32 的修法**：2.33 的 studio 层仍给
+   `.main { grid-column:3 }` / `.side { grid-column:4 }` 显式放置（只是不再显式
+   放 `.nav`），皮肤那两条 `.nav { grid-column:1 }` / `.main { grid-column:3 }`
+   钉子继续生效，三版一致，无需再改。
+4. **`--nav-w: 48px` 只在 `[data-nav]` 不是 `off` 时钉**：2.33 用
+   `data-nav="off"`（同时把 `.nav` 标 `inert`、宽度交回 `--nav-w:0`）表达
+   "这一格此刻不该出现"。无条件钉 48px 会把用户选的「收起 / 关闭」变成一条
+   空白轨，或一条看得见却点不动的轨。
+5. **左轨自带反馈入口，皮肤不再代搬**：2.33 的 `Nav.tsx` 自己就把 feedback 钮
+   放进了 `.navgrp.foot` 第一格（还带官方的 `FeedbackBadge` 未读数）。皮肤 ㉙ 段
+   若照旧从 `.railfoot` 搬一个过来，同一格里就是两个反馈图标 + 两个徽标 ——
+   实测皮肤搬来的在 `6,871 36x36`、官方的在 `6,876 36x36`，交叠 `36x31`
+   （即"打开侧栏时反馈图标重叠"）。故该段加判据：
+
+   ```css
+   .app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot { … }
+   ```
+
+   判据不能看 `data-nav`（2.32 已有，区分不出两代），也不能只判"没有 feedback
+   入口"（2.33 关掉左轨时 `.nav` 会被摘出 DOM，会留下一个孤钮）。
+
+三版一致性（同一组探针，皮肤生效后，light + dark 均 `errs=0`）：
+
+| 版本 | `.nav` | `.rail` | ☰ 命中 |
+| --- | --- | --- | --- |
+| 2.27 | `0,44 48x956`（static） | `48,44 264x956` | `path` |
+| 2.32 | `0,44 48x956`（static） | 同上 | `path` |
+| 2.33 | `0,44 48x956`（**fixed**） | 同上 | `path` |
+
+**2.32.0**（2026-10）
+
+外壳换了 `.cols` 的列序（改成 rail 优先）并改用**显式放置**：studio 层把 `.nav`
+钉进第 2 轨、`.main` 钉进第 3 轨。皮肤又把列序改回
+`[--nav-w][--rail-w][1fr][--side-w]`，于是图标轨落进 264px 的侧栏轨、与 fixed
+的 `.rail` 整体重叠（实测 `.nav` 由 `0,44 48x956` 变成 `48,44 264x956`）。
+补 `.nav { grid-column:1 }` 与 `.main { grid-column:3 }` 两条。
+
+**2.29.0**（2026-10）
+
+类名与关键变量零变化，覆盖层无需改选择器。但这一版给主题包开了口子：
+装饰角色拆成 `link` / `brand` / `halo` / `labelAgent` 四个可主题化 token，
+取值改由 `<style id="pack-theme">` 下发 —— `theme-pack/` 自此可用，
+所以主题包要求 Studio 2.29+（更早的版本会忽略这四个 token）。
+
+**2.27.0**（2026-10）
+
+DOM 与上一轮（2.26）高度一致。清掉 3 组因官方改过 JSX 而落空的死规则
+（`.studio-brand .studio-search`、`.crumb .reveal-action`、`navbadge`），
+并按纯 CSS 方式重做。
+
 ### 还原
 
 ```powershell
