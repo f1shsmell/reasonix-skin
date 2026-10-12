@@ -1,9 +1,14 @@
-// 真实渲染截图：在 2.27.0 源码构建的 perf 台上出图。
+// 真实渲染截图：在 2.36 源码构建的 perf 台上出图。
 // 用法: node shot.mjs <codex-ink.css 路径或空> <输出目录> [标签]
+//
+// 覆盖层从 2.36 起只管样式，**颜色全部由主题包下发**，所以单跑覆盖层拍不出
+// 真实观感。设 SHOT_PACK=<theme.json 路径> 会把包按官方方式一起装上
+// （见 tools/pack.mjs），截图才是"皮肤 + 包"的实际样子。
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { installPack } from "./pack.mjs";
 
 const REPO = process.env.RX_REPO ?? os.tmpdir().replace(/\\/g, "/") + "/rx-upstream/desktop/frontend-next";
 const require = createRequire(REPO + "/package.json");
@@ -16,6 +21,7 @@ const BASE = process.env.SHOT_URL ?? "http://localhost:4399/perf.html";
 const QUERY = process.env.SHOT_QUERY ?? "pref=zh&ws=2&sess=6&turns=1";
 const FULL = process.env.SHOT_FULL === "1";
 const CLIP = Number(process.env.SHOT_CLIP ?? 560);
+const PACK = process.env.SHOT_PACK ?? "";
 
 fs.mkdirSync(outDir, { recursive: true });
 const css = cssPath ? fs.readFileSync(cssPath, "utf8") : null;
@@ -56,6 +62,12 @@ for (const scheme of ["light", "dark"]) {
     await page.addStyleTag({ content: css });
     await page.waitForTimeout(400);
     await page.addStyleTag({ content: css });
+    await page.waitForTimeout(400);
+  }
+  // 包要**在覆盖层之后**装：官方那条 `:root:root[data-pack]` 靠 (0,3,0) 压过本层，
+  // 这个先后顺序与真实运行一致（theme.ts 在 App 起来后才 apply）。
+  if (PACK) {
+    await installPack(page, PACK, scheme);
     await page.waitForTimeout(400);
   }
   // SHOT_JS 指向 codex-ink.js，让截图里也有那个需要脚本的按钮

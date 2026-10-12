@@ -1,10 +1,17 @@
 ﻿<#
   Codex Ink — 给已安装的 Reasonix Studio 打覆盖补丁（可还原）
 
-  官方主题包（Theme Pack）只能设 25 个 token，碰不到内核保留的
-  --ok / --warn / --err / --net / --deleg / --add / --del / --focus，
-  也碰不到布局与密度 —— 实测这些保留变量在 2.27.0 的生产 CSS 里被引用约 580 次。
-  要做成"Codex 观感"就得落到前端资源上，而这个脚本做的就是这件事。
+  **分工（2.36 起）**：颜色归主题包，本覆盖层只管样式。
+
+  主题包（Theme Pack）的词汇表（internal/ext/theme/tokens.go）到 2.36 仍是
+  24 色 + 3 圆角 + 2 字体栈，够得到颜色；但**碰不到布局与密度**，
+  也碰不到内核保留的 --ok / --warn / --err / --net / --deleg / --add / --del
+  / --focus（实测保留变量在生产 CSS 里被引用数百次）。
+  要做成"Codex 观感"就得落到前端资源上，而这个脚本做的就是那部分（样式）。
+
+  所以完整安装是**两层**：先 `reasonix plugin install .\theme-pack --link --yes`
+  （颜色），再跑本脚本（样式）。只跑本脚本也能用，但那时用的是 Studio
+  自带调色板，只有布局与密度是 Codex 的。
 
   本版本是**纯 CSS**：只放一样东西进
   <Studio>\resources\frontend-next\dist\assets\ ：
@@ -13,9 +20,10 @@
 
   再在 dist\index.html 的 </head> 前挂一行 <link>（官方样式表之后，同特异性下后者胜）。
 
-  注入与 Studio 版本无关：2.27 / 2.32 / 2.33 三代外壳的布局差异（列序、
-  图标轨是流内元素还是固定贴边层、侧栏与顶栏的偏移量、data-nav 的语义）
-  都已在 codex-ink.css 内部适配，见其 ⑨ 与 ⑰ 两段。
+  注入与 Studio 版本无关：2.27 / 2.32 / 2.33 / 2.36 四代外壳的布局差异（列序、
+  图标轨是流内元素 / 固定贴边层 / 定宽平移、侧栏与顶栏的偏移量、☰ 是在 .chrome
+  里还是 .app 下的 fixed 层、data-nav 的语义）都已在 codex-ink.css 内部适配，
+  见其 ④ / ⑨ / ⑰ / ㉔ / ㉛ 几段。
 
   历史：早先还注入过一个 codex-ink.js（顶栏那个"打开项目文件夹"按钮），
   已按使用者要求撤掉 —— 原因记在 codex-ink.css 的 ㉚ 段：官方 API 只能

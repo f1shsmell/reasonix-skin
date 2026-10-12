@@ -24,7 +24,7 @@ await page.addStyleTag({ content: css });
 await page.waitForTimeout(500);
 
 const read = () => page.evaluate(() => {
-  const el = document.querySelector(".chrome .studio-menu");
+  const el = document.querySelector(".studio-menu");
   const cs = getComputedStyle(el, "::after");
   const b = el.getBoundingClientRect();
   const rail = document.querySelector(".rail").getBoundingClientRect();
@@ -44,17 +44,17 @@ console.log("展开态  aria-pressed=" + a.pressed + "  .rail 宽=" + a.railW + 
 console.log("        ::after content = " + a.content + "   bg=" + a.bg + "  color=" + a.fg);
 console.log("        原生 aria-label = " + a.label);
 
-await page.click(".chrome .studio-menu");
+await page.click(".studio-menu");
 await page.waitForTimeout(500);
 const b = await read();
 console.log("收起态  aria-pressed=" + b.pressed + "  .rail 宽=" + b.railW);
 console.log("        ::after content = " + b.content);
 console.log("        原生 aria-label = " + b.label);
 
-await page.hover(".chrome .studio-menu");
+await page.hover(".studio-menu");
 await page.waitForTimeout(300);
 const h = await page.evaluate(() => {
-  const el = document.querySelector(".chrome .studio-menu");
+  const el = document.querySelector(".studio-menu");
   const cs = getComputedStyle(el, "::after");
   const btn = el.getBoundingClientRect();
   return { opacity: cs.opacity, top: cs.top, left: cs.left, padding: cs.padding, font: cs.fontSize, z: cs.zIndex, btnRight: Math.round(btn.right), btnBottom: Math.round(btn.bottom) };

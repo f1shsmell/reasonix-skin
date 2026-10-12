@@ -1,129 +1,112 @@
 /* Codex Ink — fork 覆盖层
    ─────────────────────────────────────────────────────────────────────────
-   主题包只能改 23 个令牌（bg / panel / fg / border / accent …），碰不到
-   --net / --deleg / --cat-1..5 / --io-* / 品牌字色 —— 而这些恰恰是界面上
-   "还在彩色"的部分（实测 --net 一个变量就驱动 70 处文字与描边）。
+   分工（2.36 起明确）：**颜色归主题包，这一层只管样式。**
 
-   这一层把**装饰性**彩色压成灰阶，保留 ok / warn / err 的语义色：
-   状态该有的红绿仍在（Codex 自己也为 diff 与错误保留红绿），
-   但"运行中 / 委派 / 分类"这些不承载健康含义的色一律去掉。
+   颜色 —— bg / bgSoft / panel / bgElev / border / borderSoft / fg / fgDim /
+   fgFaint / fgStrong / accent / accentFg / link / brand / halo / labelAgent /
+   float / floatHi / codeBg / sunkBg / syn* / radius* 全部由 theme-pack/
+   经官方机制下发：src/ui/theme.ts 把它们写成 `<style id="pack-theme">` 里的
+   一条 `:root:root[data-pack]` 规则（0,3,0）。这一层因此**不再自带调色板**，
+   也不再提权去压它 —— 装了包就是包的色，换包即换色。
+
+   样式 —— 布局、密度、圆角档位、外壳分层、悬停提示、壁纸的透光度 —— 在这里。
+
+   只有这几样颜色仍留在这一层，因为主题包的词汇表（internal/ext/theme/tokens.go）
+   里没有对应项：
+     · --focus / --accent-ink：**派生**自 --accent，包设什么就跟什么；
+     · --cx-bubble：用户消息气泡的那一抹浅蓝（Codex 的身份色，包没有 bubble 令牌）；
+     · --cx-line：发丝线，比 --border 再淡半档；
+     · --shadow-float：浮层影。它是**影**不是色，包没有这一层；
+     · .oobe 的底色：开场仪式那一屏的固定近黑，官方写死在 app.css 里，
+       包够不到（见该段注释）。
+
+   语义色（ok / warn / err / --net / --deleg / --cat-1..5 / --io-*）本就在包的
+   词汇表之外（tokens.go 写着 "Absent on purpose: ok/warn/err/net/deleg carry
+   meaning rather than taste"），这一层也不动它们。
 
    分层结构与 studio.css 一致（:root / 媒体查询 / data-theme 两条），
    并在 studio.css 之后引入，因此同特异性下由后者胜出。
-
-   调色板也写在这里（第 1 段）：主题包靠内核注入 inline 变量，性能台不加载它，
-   所以自带一份默认值，fork 一跑起来就是 Codex。装了主题包时，
-   inline 变量优先级更高，会盖过这里的默认值 —— 两者可以并存、随时切换。
 */
 
-/* ── 调色板（Codex Ink 墨白，来自 Codex 实机截图逐像素测量）────────────── */
+/* ── 本层自己定义的变量：只有包够不到的那几个 ──────────────────────────
+   调色板不在这里 —— 它属于 theme-pack/。这里只写"哪一档取自包里的哪一层"
+   这种**样式关系**，色值本身全部由包下发。 */
 :root,
 :root[data-theme="light"] {
-  --page: #ffffff;
-  --surface: #f6f6f6;
-  --raised: #ffffff;
-  --overlay: #f1f1ef;
-  --border: #0d0d0d1f;
-  --hair: #0d0d0d12;
-  --text: #1a1c1f;
-  --muted: #5d5d5d;
-  --faint: #767676;
-  --ghost: #767676;
-  --text-strong: #0d0d0d;
-  --accent: #339cff;
-  --accent-fg: #ffffff;
-  --accent-ink: #339cff;
-  --link: #339cff;
-  --brand: #0d0d0d;
-  --halo: #0d0d0d0f;
-  --label-agent: #5d5d5d;
-  --float: #ffffff;
-  --float-hi: #f1f1ef;
-  --face-code: #f1f1ef;
-  --face-sunk: #f6f6f6;
-}
-
-/* ── 浅色：去彩 ───────────────────────────────────────────────────────── */
-:root,
-:root[data-theme="light"] {
-  /* 装饰角色（Studio 2.29 起，PR #12030）：--link / --brand / --halo /
-     --label-agent 是从 --net / --deleg 里拆出来的独立 token，取值与
-     theme-pack/ 保持一致 —— 链接保留 Codex 蓝，品牌色 / 悬停光晕 /
-     代理名标签收进灰阶。 */
-
-  /* --net / --deleg **不压灰**：拆走装饰角色后，它们只剩**信息**语义
-     （运行中 / 委派 / 连接状态，以及 .hostlab / .hl .src 等 host 标签）。
-     压成灰之后，"运行中"与"委派"就分不出来了。 */
-
-  /* --cat-1..5 与 --io-* 保持官方调色板，**不压灰**：
-     它们只出现在用量可视化里（.ctxbar / .ctxlg / .ctxpop 的 5 段，共 15 条规则），
-     是**信息**而不是装饰 —— 压成灰阶后"系统提示 / 工具定义 / 你的输入 /
-     模型回复 / 工具输出"这五段就分不出谁是谁了。 */
-
-  /* 焦点环跟随强调色（墨黑），比原来的蓝更贴合"零彩色 chrome" */
+  /* 派生：焦点环与"强调色文字"跟着包的 --accent 走 */
   --focus: var(--accent);
+  --accent-ink: var(--accent);
+
+  /* 外壳三档分层（Codex：chrome 灰 / 侧栏介于中间 / 内容最亮）。
+     浅色里"后退"是更暗，所以侧栏往 bgSoft（= --surface）方向靠一档。
+     35% 这个比例是量出来的：包为墨白时落到 #fcfcfc（252），
+     正是改造前实测的侧栏底色。 */
+  --chrome-surface: var(--surface);
+  --rail-surface: color-mix(in srgb, var(--page) 65%, var(--surface) 35%);
+
+  /* 用户消息气泡：Codex 的浅蓝。包没有 bubble 令牌，但**能表达同一件事** ——
+     它就是链接蓝的一层淡染，所以从包的 --link 混出来，跟着包走。
+     12% 是量出来的：包为墨白 / 蓝调（--link = Codex 蓝 #339CFF、--page = 白）时
+     落到 rgb(231,243,255)，与使用者给过的准确值 rgb(232,243,254) 逐通道差 ≤2。 */
+  --cx-bubble: color-mix(in srgb, var(--link) 12%, var(--page));
 }
 
-/* ── 深色 ─────────────────────────────────────────────────────────────── */
+/* ── 浅色：装饰角色由包下发 ────────────────────────────────────────────
+   --link / --brand / --halo / --label-agent 从 2.29 起是独立的装饰角色
+   token（PR #12030），**主题包能设**，所以取值归 theme-pack/，
+   这一层不再代劳。
+
+   --net / --deleg 也**不压灰**：拆走装饰角色后它们只剩**信息**语义
+   （运行中 / 委派 / 连接状态，以及 .hostlab / .hl .src 等 host 标签）。
+   压成灰之后，"运行中"与"委派"就分不出来了。它们本就不在包的词汇表里
+   （tokens.go: "Absent on purpose: ok/warn/err/net/deleg carry meaning
+   rather than taste"），所以保持官方调色板即可。
+
+   --cat-1..5 与 --io-* 同理：只出现在用量可视化里（.ctxbar / .ctxlg /
+   .ctxpop 的 5 段），是**信息**而不是装饰 —— 压成灰阶后
+   "系统提示 / 工具定义 / 你的输入 / 模型回复 / 工具输出"这五段就分不出谁是谁了。 */
+
+/* ── 深色：外壳三档分层 + 派生变量 ──────────────────────────────────────
+   浅色下 chrome 246 / 侧栏 252 / 内容 255 三档分得开；暗色里"后退"是更暗、
+   "前进"是更亮，所以侧栏比内容区**亮**半档，而 chrome 回到 bgSoft。
+   两者都由包下发的 --page / --surface 混出来，换包跟着走。
+
+   --focus / --accent-ink 两个派生变量必须在这里**重复一遍**：上面那条
+   `:root, :root[data-theme="light"]` 只在浅色下成立，暗色两条分支得各自声明，
+   否则会掉回官方默认的 `--focus: var(--net)`（一个偏青的蓝）——
+   实测漏掉时暗色焦点环量到 rgb(79,182,206)。
+
+   暗色的侧栏往 --overlay（bgElev，更亮的一档）混 30%，不是往 --surface 混：
+   往 --surface 混只会更暗（墨白下量到 15.6），而这一档要的是"比内容区亮半档"。
+   30% 是量出来的：墨白暗色下 --page #111111(17) 与 --overlay #212121(33)
+   混出 21.8 ≈ #161616(22)，正是改造前实测的侧栏底色。 */
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #111111;
-    --surface: #0f0f0f;
-    --raised: #181818;
-    --overlay: #212121;
-    --border: #ffffff24;
-    --hair: #ffffff14;
-    --text: #ffffff;
-    --muted: #b4b4b4;
-    --faint: #949494;
-    --ghost: #949494;
-    --text-strong: #ffffff;
-    --accent: #339cff;
-    --accent-fg: #ffffff;
-    --accent-ink: #339cff;
-    --link: #339cff;
-    --brand: #ffffff;
-    --halo: #ffffff12;
-    --label-agent: #b4b4b4;
-    --float: #212121;
-    --float-hi: #282828;
-    --face-code: #1f1f1f;
-    --face-sunk: #0d0d0d;
     --focus: var(--accent);
+    --accent-ink: var(--accent);
+    --chrome-surface: var(--surface);
+    --rail-surface: color-mix(in srgb, var(--page) 70%, var(--overlay) 30%);
+    --cx-bubble: color-mix(in srgb, var(--link) 32%, var(--page));
   }
 }
 
 :root[data-theme="dark"] {
-  --page: #111111;
-  --surface: #0f0f0f;
-  --raised: #181818;
-  --overlay: #212121;
-  --border: #ffffff24;
-  --hair: #ffffff14;
-  --text: #ffffff;
-  --muted: #b4b4b4;
-  --faint: #949494;
-  --ghost: #949494;
-  --text-strong: #ffffff;
-  --accent: #339cff;
-  --accent-fg: #ffffff;
-  --accent-ink: #339cff;
-  --link: #339cff;
-  --brand: #ffffff;
-  --halo: #ffffff12;
-  --label-agent: #b4b4b4;
-  --float: #212121;
-  --float-hi: #282828;
-  --face-code: #1f1f1f;
-  --face-sunk: #0d0d0d;
   --focus: var(--accent);
+  --accent-ink: var(--accent);
+  --chrome-surface: var(--surface);
+  --rail-surface: color-mix(in srgb, var(--page) 70%, var(--overlay) 30%);
+  --cx-bubble: color-mix(in srgb, var(--link) 32%, var(--page));
 }
 
-/* studio.css 在浅色下把品牌强调字写死成 #526a9f，这里收回灰阶。
-   对方是 :root[data-theme="light"] .studio-brand-accent（0,2,1），
-   所以这里必须提权才压得住。 */
+/* studio.css 在浅色下把品牌强调字写死成 #526a9f —— 那是个**硬编码**，
+   主题包够不到（它不在令牌体系里）。本层不再自己指定颜色，改成把它接到
+   包的 `brand` 令牌上（tokens.go 里 brand 的注释正是"the product accent"）：
+   theme-pack/ 两个包都把 brand 设成墨阶（浅色 #0D0D0D / 暗色 #FFFFFF），
+   于是"零彩色 chrome"由**包**表达，本层只负责"这个元素该用 brand 这一档"。
+   对方是 :root[data-theme="light"] .studio-brand-accent（0,3,0），
+   本层 (0,2,0) 压不住，仍需提权。 */
 :root .studio-brand-accent {
-  color: var(--text-strong) !important;
+  color: var(--brand) !important;
 }
 
 /* ── 硬编码的装饰性彩色 ────────────────────────────────────────────────
@@ -158,34 +141,29 @@
 /* 注：曾经把 .usage 的 --chart（用量图表色）换成灰阶，已撤掉 ——
    --cat-1 本身已经是蓝，不必再覆盖。 */
 
-/* ── 首次开屏 ──────────────────────────────────────────────────────────
-   .oobe 是一块**恒定**的近黑全屏（与主题无关），所以这里用固定的近白强调，
-   对应 Codex 在深色底上的白色主按钮。不能走 var(--accent)：浅色主题下
-   强调是墨黑，落在近黑底上会看不见。 */
+/* ── 首次开屏（Welcome / .oobe）────────────────────────────────────────
+   .oobe 是开场仪式那一屏（Welcome.tsx），一块**恒定**的近黑全屏 —— 官方注释
+   写明"the ground is dark whatever the app theme is … a ceremony rather than
+   a screen of the app"，所以它本来就不跟主题走。
+
+   **这一段是本层唯一还在写色值的地方，而且是故意的**：官方把 .oobe 的底色
+   （#05060A，带一点蓝的近黑）**写死在 app.css 里**，不在令牌体系内，
+   `internal/ext/theme/tokens.go` 的词汇表里也没有"仪式场景"这一层 ——
+   也就是说这份颜色**交不出去**，主题包无论怎么配都碰不到它。
+   本层只把它从"带蓝的近黑"收成中性近黑（#0d0d0d），与"零彩色 chrome"一致；
+   既然交不出去，就只能留在这里，并在 README 里记一笔。
+
+   注：这里早先还有一组 `.oobe .onb-*`（把首次设置的主按钮换成近白）——
+   那组**从来没匹配过**：`.onb-*` 是 Onboarding.tsx 的类，它的根是
+   `.onb-stage`；而 `.oobe` 是另一屏（Welcome.tsx）的根，两者从不同时出现
+   （App.tsx 是二选一渲染）。2.27 / 2.33 / 2.36 三代都是如此。
+   更要紧的是**那组已经不需要了**：2.36 的 studio.css 自己就把
+   `.onb-go` / `.onb-fix` / `.onb-getkey` / `.onb-pick` 接到了令牌上
+   （`--text` / `--border` / `--focus`），实测 `.onb-go` 计算值 rgb(37,39,37)
+   正是包下发的 `--text` —— 首次设置屏已经是"包说了算"，本层不必也不该插手。
+   （其余所有颜色都归 theme-pack/，见文件开头那段分工说明。） */
 .oobe {
   background: #0d0d0d;
-}
-.oobe .onb-go {
-  background: #f5f5f5;
-  color: #0d0d0d;
-  border-color: #f5f5f5;
-}
-.oobe .onb-fix {
-  color: #e5e5e5;
-  background: rgb(255 255 255 / 0.06);
-  border-color: rgb(255 255 255 / 0.18);
-}
-.oobe .onb-fix:hover {
-  background: rgb(255 255 255 / 0.1);
-}
-.oobe .onb-getkey:hover {
-  color: #ffffff;
-  border-bottom-color: rgb(255 255 255 / 0.35);
-}
-.oobe .onb-pick .mi[data-on] .dot,
-.oobe .onb-pick .mi[data-on] .rt {
-  background: #f5f5f5;
-  color: #0d0d0d;
 }
 
 /* ── 浮层：Codex 是"细描边 + 克制投影"，不是大范围柔影 ─────────────────
@@ -234,10 +212,19 @@
   color: var(--muted) !important;
 }
 
-/* ④ 顶栏压矮（54 → 44px），左右内边距收紧 */
+/* ④ 顶栏压矮（54 → 44px），右边内边距收紧；左边给固定的 ☰ 让出位置。
+   2.36 把 ☰ 从 .chrome 里搬了出来，改成 `.app` 下 `position:fixed` 的一层
+   （studio.css: `.studio-menu { position: fixed; left: calc(var(--lights-w) + 10px) }`），
+   而本层 ⑰ 又把 .chrome 拉成通栏（margin-left:0）—— 于是面包屑落回 x=12，
+   正好压在 ☰（10..40）身上。实测：皮肤下 ☰ 在 `10,7 30x30`、
+   .crumb-folder 在 `12,14 16x16`，**交叠 16px**（整个文件夹图标）。
+   官方自己的算法是 `max(20px, calc(var(--lights-w) + 50px - var(--nav-w) - var(--rail-w)))`，
+   那是建立在 .chrome 从 x=312 起的前提上；通栏之后要改成从窗口左边直接量：
+   ☰ 右缘 = lights-w + 40，再留 12px 气口 → lights-w + 52。
+   Windows 上 --lights-w 是 0px，落到 52px；macOS 是 96px，落到 148px。 */
 .chrome {
   height: 44px !important;
-  padding: 0 12px !important;
+  padding: 0 12px 0 calc(var(--lights-w) + 52px) !important;
 }
 
 /* ⑤ 卡片圆角提一档，贴近 Codex 的大圆角 */
@@ -271,19 +258,8 @@
 }
 
 /* ⑦ 用户消息气泡：最新 Codex 里它是**浅蓝**的 —— chrome 无彩色，但"我说的那句话"
-   和发送按钮是这一抹蓝。我们原本是白卡 + inset 高光。 */
-:root,
-:root[data-theme="light"] {
-  --cx-bubble: #dce9fd;
-}
-:root[data-theme="dark"] {
-  --cx-bubble: #1e3a5c;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --cx-bubble: #1e3a5c;
-  }
-}
+   和发送按钮是这一抹蓝。我们原本是白卡 + inset 高光。
+   （--cx-bubble 的取值定义在文件开头，从包的 --link 混出来。） */
 
 .call[data-k="me"] .out .txt {
   background: var(--cx-bubble) !important;
@@ -309,12 +285,31 @@
    是 Studio 外壳把它收成 0 宽并 display:none 了。这里只把它放回来，
    并把选中态从"白底方块 + 左侧竖条"改成 Codex 的"图标本身变深"。
 
-   2.33 起外壳用 data-nav="off" 表达"这一格此刻不该出现"：Nav.tsx 会把元素
-   标成 inert，宽度交给 --nav-w: 0px 收起。此时若还钉 48px，用户选「收起」
-   或「关闭」就会留下一条空白轨，或一条看得见却点不动的轨。所以只在外壳
-   没有明说 off 时才钉 —— 2.27 根本没有 data-nav 属性，照样命中。 */
+   **2.36 换了收放模型**：早先（2.27–2.35）是 `width: var(--nav-w)`，宽度直接被
+   收到 0；2.36 改成**定宽 + 平移**：
+
+     .nav { width: var(--nav-open); translate: calc(var(--nav-w) - var(--nav-open)) 0 }
+     .app[data-nav="on"] { --nav-w: var(--nav-open) }
+
+   也就是列宽 `--nav-w` 仍然参与 .cols 的网格（on 时 48px、off 时 0px），
+   而元素本身**始终保持 --nav-open 宽**，靠 translate 滑出去 —— 这样悬停提示
+   （.navhint，挂在 `left: calc(100% + 8px)`）不会被裁掉（2.36 同时删掉了
+   .nav 上的 overflow:hidden，LAYOUT.md 里写明了原因）。
+
+   于是本层要钉的是**两个**变量：--nav-w 决定网格留多宽，--nav-open 决定这一层
+   本身多宽、以及 translate 的基准。只钉 --nav-w 的话，一旦 --nav-open 与它不等
+   （将来官方改开合宽度、或加了密度档），translate 就会把图标轨滑偏一截。
+   两者一起钉成 48px，translate 恒为 0，落点与旧版一致。
+
+   判据仍然是"外壳有没有明说 off"：2.36 里 data-nav="on" 恰好等价于
+   "这一格此刻在屏幕上"（App.tsx: `data-nav={navRail.shown ? "on" : "off"}`，
+   而 shown = drawn && (mode === "on" || !railOpen)）—— 用户选「收起」时
+   侧栏一展开它就变成 off，宽度交回 0、整层滑出屏幕。此时若还钉 48px，
+   就会留下一条空白轨，或一条看得见却点不动的轨。
+   2.27 根本没有 data-nav 属性，`:not([data-nav="off"])` 照样命中。 */
 .app:not([data-nav="off"]) {
   --nav-w: 48px !important;
+  --nav-open: 48px !important;
 }
 .nav {
   display: flex !important;
@@ -448,7 +443,12 @@
   padding: 8px 12px 8px !important;
 }
 
-/* ⑮ 底色照 Codex：左轨浅灰、侧栏与上边栏同为白，三块连成一片。 */
+/* ⑮ 底色照 Codex：左轨浅灰、侧栏与上边栏同为白，三块连成一片。
+   **注：这两条已被后面的 ⑳ / ㉑ 取代** —— ⑳ 把 `.nav` 改到 `--chrome-surface`、
+   ㉑ 把 `.rail` 改到 `--rail-surface`，两者都排在更后面，源序上胜出。
+   留着是因为它们对"只有 ⑮ 生效"的中间状态无害（值相同或更接近），
+   且删掉会让 diff 难以对照。实测最终值：左轨 246（`--chrome-surface` = `--surface`）、
+   侧栏 252（`--rail-surface` 由包的 `--page`/`--surface` 混出）。 */
 .nav {
   background: var(--surface) !important;
 }
@@ -507,35 +507,28 @@
   margin-top: 8px;
 }
 
-/* 切换按钮只留顶栏那一个（位置固定）。侧栏头部这个会随侧栏一起移动，去掉。 */
+/* 切换按钮只留顶栏那一个（位置固定）。侧栏头部这个会随侧栏一起移动，去掉。
+   **2.36 起 .studio-collapse 已从 Sidebar.tsx 整个删掉**（studio.css 里那几条
+   `.studio-collapse` 规则也一并删除），所以这一条如今是死规则、不会再匹配。
+   留着它不影响任何东西 —— 2.27–2.35 的 Sidebar 还有这个按钮，多打一条
+   也就不用为老版本分叉 —— 但要知道它在 2.36 上不生效。
+   真正的"只留一个"如今由官方保证：顶栏那个 .studio-menu 是 .app 下的
+   fixed 层，侧栏头部不再有第二个开关（见 ④ 与 ㉛）。 */
 .studio-collapse {
   display: none !important;
 }
 
-/* ⑲ 用户气泡的蓝色：用户给了准确值 rgb(232, 243, 254)。 */
-:root,
-:root[data-theme="light"] {
-  --cx-bubble: #e8f3fe;
-}
-
 /* ⑳ 标注区域配色（按用户截图）：
-   红框 = 顶栏 + 最左图标轨，固定 #F6F6F6（Codex 的 chrome 灰）；
-   蓝框 = 侧栏 + 视图页签，恢复为主题的页面色（墨白浅色下为纯白）。
-   左轨/侧栏之间不画分隔线。 */
-:root,
-:root[data-theme="light"] {
-  --chrome-surface: #f6f6f6;
-}
+   红框 = 顶栏 + 最左图标轨，取 --chrome-surface（Codex 的 chrome 灰）；
+   蓝框 = 侧栏 + 视图页签，取包的页面色。
+   左轨/侧栏之间不画分隔线。
+   （--chrome-surface 的取值定义在文件开头：它是 --surface / --page 的混合，
+   所以包换色它跟着换 —— 这一层只决定"哪一块用哪一档"。） */
+
 /* 顶栏的底色与那条发丝线，见文末「顶栏：底色 + 底部一条线」—— 那是 2.27 实测后
    重写的版本。这里只留"不要默认的整条底边线"，因为左上角（左轨正上方）不该有线。 */
 .chrome {
   border-bottom: 0 !important;
-}
-.chrome .studio-menu {
-  width: 36px !important;
-  min-width: 36px !important;
-  height: 36px !important;
-  margin-left: -6px !important;
 }
 .nav {
   border-right: none !important;
@@ -551,14 +544,6 @@
   padding-top: 2px !important;
   padding-bottom: 4px !important;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --chrome-surface: #0f0f0f;
-  }
-}
-:root[data-theme="dark"] {
-  --chrome-surface: #0f0f0f;
-}
 
 /* 面包屑上的文件夹图标：上一轮把它改成了"打开项目文件夹"按钮（.reveal-action），
    那是 Chrome.tsx 里新增的元素。这一轮不改 JSX，2.27 的 DOM 里它仍是纯装饰的
@@ -566,21 +551,11 @@
 
 /* ══ 第二轮（顶栏 / R标 / 圆角 / 侧栏底 / 缓冲色）══════════════════════ */
 
-/* ㉑ 顶栏与最左图标轨同为 246（上一段已各自落到 --chrome-surface，
-   这里不再重涂）。侧栏一列照 Codex 涂 252：比页面白暗半档、比外壳 246
-   亮半档，三块各有各的底。252 与 255 只差半档，边界靠发丝线立起来。 */
-:root,
-:root[data-theme="light"] {
-  --rail-surface: #fcfcfc;
-}
-:root[data-theme="dark"] {
-  --rail-surface: #0f0f0f;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --rail-surface: #0f0f0f;
-  }
-}
+/* ㉑ 外壳三档分层（Codex：chrome 灰 / 侧栏介于中间 / 内容最亮）。
+   --chrome-surface 与 --rail-surface 的**取值**定义在文件开头，都由包下发的
+   --page / --surface 混出来；这里只把它们铺到对应的面上。
+   浅色下包为墨白时：chrome 246 / 侧栏 252 / 内容 255，三块各有各的底，
+   252 与 255 只差半档，边界靠发丝线立起来。 */
 .rail,
 .studio-rail-head {
   background: var(--rail-surface) !important;
@@ -606,17 +581,19 @@
 }
 
 /* ㉒ 缓冲色（需求5）：Codex 的每块色面靠 1px 发丝线从同色底里读出来，
-   不靠投影。--cx-line 比 --border 再淡半档，是这层线的公共取值。 */
+   不靠投影。--cx-line 比 --border 再淡半档，是这层线的公共取值。
+   包没有"比 border 更淡"这一档，所以由包的 --border 派生：
+   浅色下 border 是 12% 的黑，取其 2/3；暗色同理。 */
 :root,
 :root[data-theme="light"] {
-  --cx-line: #0d0d0d14;
+  --cx-line: color-mix(in srgb, var(--border) 67%, transparent);
 }
 :root[data-theme="dark"] {
-  --cx-line: #ffffff1f;
+  --cx-line: color-mix(in srgb, var(--border) 67%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --cx-line: #ffffff1f;
+    --cx-line: color-mix(in srgb, var(--border) 67%, transparent);
   }
 }
 
@@ -667,68 +644,108 @@
   border-radius: 8px !important;
 }
 
-/* ㉔ 外壳不透底：插画包把 data-bg 打开后，studio.css 会把顶栏和侧栏磨砂成
-   半透明、染上氛围色（实测顶栏 230、左轨 246 —— 同一个壳两个色）。
-   壳是 fork 固定结构，照 20/21 的平面色走满；氛围层只留给内容区。 */
-:root[data-bg] :is(.chrome, .nav),
-:root[data-theme="light"][data-bg] :is(.chrome, .nav),
-:root[data-theme="dark"][data-bg] :is(.chrome, .nav) {
+/* ㉔ 壁纸（插画包 / sky）要能看见。
+   ─────────────────────────────────────────────────────────────────────────
+   包带图时 theme.ts 会给 <html> 打上 `data-bg`（有 sky 时另加 `data-sky`），
+   并把 `--bg-image` / `--bg-x` / `--bg-y` / `--bg-alpha` / `--bg-overlay`
+   下发到 `:root:root[data-pack]`。真正的画面由 studio.css 的
+   `body:before` 画：fixed、z-index:-2、`background-image: var(--bg-image)`。
+
+   于是**外壳必须让路**：studio.css / app.css 为此把 .app / .main / .panes /
+   .rail / .side / .nav / .chrome / .tabs 全部改成半透明
+   （`color-mix(in srgb, var(--page) 62%…86%, transparent)`），
+   底下的图才透得上来。
+
+   本层早先的写法是反过来的 —— 把外壳**涂满**不透明色，理由是"氛围层只留给
+   内容区"。那在纯色主题下看不出问题，一装带图的包就**把壁纸整块盖掉**：
+   实测包为插画时，外壳三块量到 rgb(246,246,246) / rgb(252,252,252) 全不透明，
+   而同一页面去掉本层后是 62% / 86% 的 alpha。
+
+   现在改成"让路"：外壳保留 Codex 的**分层**（chrome / 侧栏 / 内容三档仍然
+   分得开），但按包同样的方式做成半透明，并保持本层自己的色相
+   （--chrome-surface / --rail-surface 由包的 --page / --surface 混出）。
+   比例取 studio.css 的两档：chrome 80%（浅色 86%），侧栏 80%（浅色 86%）——
+   浅色下比暗色更"实"一档，因为浅色包的图更亮、字更容易被吃掉。
+
+   backdrop-filter 一并清掉：那是磨砂，会让壁纸在外壳下糊成一片色，
+   而 Codex 的外壳是平面色。 */
+/* 选择器一律写成 `:root:root[…]`：本层别处也画这几个面，而且都带 !important ——
+   ㉑ 的 `:root[data-theme="light"] .rail`（0,3,0）、文末「顶栏」段的
+   `:root .chrome`（0,2,0）与 `@media` 里的 `:root:not([data-theme="light"]) .chrome`
+   （0,3,0）。多写一个 `:root` 把这里抬到 (0,4,0) 以上，就不必依赖源序，
+   也不会被后来那几段翻盘（**auto 模式**下 `:root .chrome` 与这里同权重、
+   又排在后面，只写一个 `:root` 会被它盖回不透明 —— 实测踩过）。 */
+:root:root[data-bg] :is(.chrome, .nav),
+:root:root[data-theme="light"][data-bg] :is(.chrome, .nav),
+:root:root[data-theme="dark"][data-bg] :is(.chrome, .nav) {
   background: linear-gradient(to right, transparent 48px, var(--hair) 48px) left 100% / 100% 1px no-repeat,
-    var(--chrome-surface, var(--surface)) !important;
+    color-mix(in srgb, var(--chrome-surface, var(--surface)) 80%, transparent) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-:root[data-bg] :is(.rail, .side),
-:root[data-theme="light"][data-bg] :is(.rail, .side),
-:root[data-theme="dark"][data-bg] :is(.rail, .side) {
-  background: var(--rail-surface, var(--page)) !important;
+:root:root[data-bg] :is(.rail, .side),
+:root:root[data-theme="light"][data-bg] :is(.rail, .side),
+:root:root[data-theme="dark"][data-bg] :is(.rail, .side) {
+  background: color-mix(in srgb, var(--rail-surface, var(--page)) 80%, transparent) !important;
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
-
-/* ══ 四级文字色必须提权（2.27 实测）═════════════════════════════════════
-   src/ui/theme.ts 的 apply() 把 STEPS 里的四个 ink 变量内联写到 <html> 上：
-
-     for (const name of Object.keys(STEPS)) {          // fg / fgStrong / fgDim / fgFaint
-       const authored = pack?.tokens[scheme]?.[name];
-       const from = authored || base.getPropertyValue(SURFACE[name][0]).trim();
-       if (!authored && from) root.style.setProperty(v, ink(from, name, scheme, contrast));
-     }
-
-   实测：套上本文件后 --page 从 #efefec 变成 #ffffff，而 --text 纹丝不动，仍是
-   默认的 #292b29 —— 就是被这行内联盖住的。内联样式对任何选择器都更高优先，
-   外部样式表要改这四个只能 !important。
-
-   代价：装上主题包（主题包也走 apply() 内联）时，这四个会被这里钉住。
-   覆盖层的取舍本来就是"外观恒定"，其余变量都留给主题包。
-
-   不在 STEPS 里的变量（--page / --surface / --raised / --overlay / --border /
-   --hair / --accent / --accent-fg / --float / --face-* / --net / --deleg …）
-   App 不内联写，普通声明即可生效，无需提权。 */
-:root,
-:root[data-theme="light"] {
-  --text: #1a1c1f !important;
-  --text-strong: #0d0d0d !important;
-  --muted: #5d5d5d !important;
-  --faint: #767676 !important;
-  --ghost: #767676 !important;
+/* 浅色下比暗色实一档：86% 也是 studio.css 自己那两档里的浅色值。
+   浅色包的插画更亮，外壳再淡就压不住字。
+   注意这里**不要**把 .studio-rail-head 列进来：它是 .rail 的子元素，
+   列进来会得到 (0,5,0) 的权重，反而盖掉下面那条"透明"，于是两层 0.86 相乘、
+   把壁纸洗没（实测该点 spread 只剩 3）。 */
+:root:root[data-theme="light"][data-bg] :is(.chrome, .nav) {
+  background: linear-gradient(to right, transparent 48px, var(--hair) 48px) left 100% / 100% 1px no-repeat,
+    color-mix(in srgb, var(--chrome-surface, var(--surface)) 86%, transparent) !important;
 }
-:root[data-theme="dark"] {
-  --text: #ffffff !important;
-  --text-strong: #ffffff !important;
-  --muted: #b4b4b4 !important;
-  --faint: #949494 !important;
-  --ghost: #949494 !important;
+:root:root[data-theme="light"][data-bg] :is(.rail, .side) {
+  background: color-mix(in srgb, var(--rail-surface, var(--page)) 86%, transparent) !important;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --text: #ffffff !important;
-    --text-strong: #ffffff !important;
-    --muted: #b4b4b4 !important;
-    --faint: #949494 !important;
-    --ghost: #949494 !important;
-  }
+/* 页签条与侧栏头部：本层 ⑳/㉑ 把它们涂成了不透明的 --page / --rail-surface，
+   同样要让路。
+   侧栏头部要**透明**而不是再来一层半透明 —— 它是 .rail 的子元素，.rail 已经画过
+   一层 0.86 了；这里再叠一层 0.86，两层相乘等于把壁纸洗没（实测该点
+   spread 只剩 3，肉眼就是块死白）。官方表里 .studio-rail-head 本来就没有底色。 */
+:root:root[data-bg] .tabs,
+:root:root[data-theme="light"][data-bg] .tabs,
+:root:root[data-theme="dark"][data-bg] .tabs {
+  background: color-mix(in srgb, var(--page) 80%, transparent) !important;
 }
+:root:root[data-bg] .studio-rail-head {
+  background: transparent !important;
+}
+/* composer 也一样：本层把它涂成 --page / --raised 的不透明卡，
+   会把正下方的壁纸盖出一块白。studio.css 给的是 88% 的 --raised + 11px 模糊，
+   那正是"卡片浮在图上"该有的样子，这里直接放行。 */
+:root:root[data-bg] .compose,
+:root:root[data-theme="light"][data-bg] .compose,
+:root:root[data-theme="dark"][data-bg] .compose {
+  background: color-mix(in srgb, var(--raised) 88%, transparent) !important;
+  -webkit-backdrop-filter: blur(11px) saturate(1.04) !important;
+  backdrop-filter: blur(11px) saturate(1.04) !important;
+}
+
+/* ══ 四级文字色：交还给主题包（2.36 实测）═══════════════════════════════
+   本层早先必须把 --text / --text-strong / --muted / --faint / --ghost 用
+   `!important` 钉住，理由是"theme.ts 的 apply() 把这四个 ink 变量**内联**
+   写到 <html> 上，内联优先级高于任何选择器"。
+
+   **2.36 的 apply() 已经不写内联了**：整份取值走 CSSOM 写进一条
+   `<style id="pack-theme">` 里的 `:root:root[data-pack] {}` 规则：
+
+     const style = place(owned);            // <style id="pack-theme">
+     sheet.insertRule(`${SELECTOR} {}`);    // SELECTOR = ":root:root[data-pack]"
+     for (const [name, value] of paint) decl.setProperty(name, value);
+
+   那条规则的特异性是 (0,3,0)，本层的 `:root[data-theme="light"]` 只有
+   (0,2,0) —— 所以**包自然胜出，本层不需要也不该再提权**。
+
+   实测（2.36 性能台，装带 fg 的包）：留着这一段时 --text 被钉成 #1a1c1f
+   （本层旧值），删掉后变成包给的 #12191C。这正是"颜色归主题包"。
+
+   于是这一段整块删掉，只留这段说明。文字色从此跟着包走：装包即包的字色，
+   不装包就是 tokens.css 的内置调色板。 */
 
 /* ══ 侧栏头部收成一行 + 与上边栏齐平（2.27 版）══════════════════════════
    Codex 的侧栏头部是一行 "Codex ⌄ 🔔 🔍"：品牌在左、搜索在右。
@@ -772,30 +789,29 @@
 
 /* ══ 收尾（2.27 版）═════════════════════════════════════════════════════ */
 
-/* ㉕ 侧栏脚整块去掉。
+/* ㉕ 侧栏脚整块去掉 —— **但只在左轨真的在屏幕上时**。
    .railfoot 里是三样：「钱包与用量」「发送反馈」「账户行」（外加它们的上下分隔线）。
    Codex 的侧栏到会话列表就结束了，底部没有这一块。
-   这几个入口都不缺：
-     · 余额     → 底部状态条的 .studio-meter-wallet
-     · 发送反馈 → 左轨图标轨 .navgrp.foot
-     · 账号/登录 → 左轨底部的设置，进去第一项就是登录
-   上一轮是删 JSX，这一轮只打 CSS 补丁，所以整块隐藏（连分隔线一起）。 */
-.railfoot {
-  display: none !important;
-}
 
-/* ㉖ 暗色的三段层次。
-   浅色下外壳 246 / 侧栏 252 / 内容 255 三档分得开；暗色若照抄同一组取值，
-   --chrome-surface 与 --rail-surface 会一起落到 #0f0f0f —— 实测「顶栏 / 左轨 /
-   侧栏」三块全是 rgb(15,15,15)，糊成一片，Codex 那种"灰壳 + 白面"的分工没了。
-   暗色里"后退"是更暗、"前进"是更亮，所以侧栏比内容区亮半档： */
-:root[data-theme="dark"] {
-  --rail-surface: #161616;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --rail-surface: #161616;
-  }
+   **2.34 起官方与这条规则同向**：Sidebar.tsx 把它写成
+   `{!navShown && <div className="railfoot">…}` —— 左轨在屏幕上时侧栏脚**根本不渲染**
+   （LAYOUT.md: "The sidebar footer supplies usage, feedback, account and settings
+   only when the global icon navigation is not visible … so both columns never
+   offer the same footer actions together"）。
+
+   所以判据不能是无条件隐藏。左轨不可见时（`data-nav="off"`，两种情形：用户把
+   左轨设成「收起」而侧栏正开着，或直接设成「关闭」），侧栏脚是这几个入口
+   **唯一**的去处 —— 那时无条件藏掉，就等于把反馈 / 账户 / 用量一起藏了。
+   README 里记着这条教训：为了"形似 Codex"而藏入口，除非别处同样可达。
+
+   两个判据覆盖两代：
+     · `[data-nav="on"]` —— 2.32+ 明说左轨在屏幕上；
+     · 没有 data-nav 属性且有 .nav —— 2.27–2.31 没有这个属性，而本层 ⑨
+       一定会把 .nav 放出来（display:flex + --nav-w:48px），左轨同样在屏幕上。
+   上一轮是删 JSX，这一轮只打 CSS 补丁。 */
+.app[data-nav="on"] .railfoot,
+.app:not([data-nav]):has(.nav) .railfoot {
+  display: none !important;
 }
 
 /* ㉗ 空态照 Codex 放一号。
@@ -876,9 +892,15 @@
    .nav 会从 DOM 上摘掉，:has() 一样问不到 feedback，那时必须继续藏着
    .railfoot，否则会有一个反馈钮孤零零挂在屏幕左沿。所以前提是两句：
    :has(.nav)（左轨在）且 not(:has(...feedback.open))（它自己没有反馈入口）。
-   只需要给「.railfoot 本身」那两条规则加前缀：.railfoot 一旦被 ㉕ 藏成
-   display:none，挂在它下面的 .studio-feedback 那一组规则再匹配也画不出来，
-   所以下面那些规则不用跟着改。 */
+
+   **整段（含下面所有 .railfoot .studio-feedback 规则）都必须挂这个前提。**
+   2.34 起官方只在左轨不可见时才渲染 .railfoot，而 ㉕ 又照着这个节奏放行它 ——
+   于是"左轨被用户收起 / 关掉"时 .railfoot 是会渲染的。这时若下面那组规则
+   不挂前提，就会把 footer 里的反馈钮**拽出侧栏**钉到 x=6：而那个位置此刻
+   根本没有左轨（.nav 被 translate 滑出屏幕，或干脆不在 DOM 里）——
+   实测 collapsed 档下按钮落在 6,871 36x36，屏幕上是一枚悬空的图标。
+   挂了前提之后，这个按钮只在"左轨在屏幕上且它自己没有反馈入口"时才被搬，
+   其余时候都留在侧栏脚里当普通的一行。 */
 .app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot {
   display: block !important;
   position: static !important;
@@ -894,7 +916,7 @@
 .app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot > .studio-user-foot {
   display: none !important;
 }
-.railfoot .studio-feedback {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback {
   /* 这里必须用 fixed 而不是 absolute：
      .rail 是 position:fixed + **overflow:hidden**，absolute 会相对它定位，
      而按钮要落在它左边界之外（左轨在 x=6，.rail 从 x=48 起）—— 会被裁掉。
@@ -923,25 +945,25 @@
   box-shadow: none;
   color: var(--muted);
 }
-.railfoot .studio-feedback:hover {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback:hover {
   background: var(--overlay);
   color: var(--text);
 }
-.railfoot .studio-feedback > span {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback > span {
   display: grid;
   place-items: center;
   color: inherit;
 }
-.railfoot .studio-feedback > b {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback > b {
   display: none !important; /* 左轨只放图标，"发送反馈"四个字留给提示 */
 }
-.railfoot .studio-feedback svg {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback svg {
   width: 17px;
   height: 17px;
 }
 /* 左轨每一格都有悬停提示（.navhint），搬过来的这个也得有 ——
    原按钮的文字被收掉了，改用伪元素画一个同样形态的提示。 */
-.railfoot .studio-feedback::after {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback::after {
   content: "发送反馈";
   position: absolute;
   left: calc(100% + 8px);
@@ -957,12 +979,12 @@
   pointer-events: none;
   transition: opacity 120ms ease;
 }
-.railfoot .studio-feedback:hover::after {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback:hover::after {
   opacity: 1;
 }
 /* 未读数徽标：原按钮是 236px 宽的一行，徽标挂在行的右端；
    缩到 36px 的方块后要挪到右上角才读得出来。 */
-.railfoot .studio-feedback .fbk-badge {
+.app:has(.nav):not(:has(.nav [data-action="feedback.open"])) .railfoot .studio-feedback .fbk-badge {
   position: absolute;
   top: -1px;
   right: -1px;
@@ -1001,11 +1023,14 @@
    顶栏其他按钮都有 title，只有它是光秃秃的。
    而它的状态就写在 aria-pressed 上（aria-pressed={rail}），于是纯 CSS 也能给出
    随展开/收起切换的文案 —— 不需要脚本。
-   .chrome 实测是 position:relative + overflow:visible，提示放得下不会被裁。 */
-.chrome .studio-menu {
-  position: relative;
-}
-.chrome .studio-menu::after {
+
+   **2.36 的选择器变了**：☰ 不再是 `.chrome .studio-menu`，而是 `.app` 下
+   `position:fixed` 的一层（Chrome.tsx 把它挪出了 `<div className="chrome">`），
+   所以前缀从 `.chrome .studio-menu` 改成 `.studio-menu`。
+   它自己也已经是 position:fixed，`position:relative` 那条不必再写
+   （写了会把它从 fixed 打回 relative，反而把按钮拽进文档流）。
+   fixed 层的 containing block 是视口，提示挂在它下面不会被裁。 */
+.studio-menu::after {
   content: "收起侧栏";
   position: absolute;
   left: 50%;
@@ -1022,10 +1047,10 @@
   transition: opacity 120ms ease;
   z-index: 40;
 }
-.chrome .studio-menu[aria-pressed="false"]::after {
+.studio-menu[aria-pressed="false"]::after {
   content: "展开侧栏";
 }
-.chrome .studio-menu:hover::after {
+.studio-menu:hover::after {
   opacity: 1;
 }
 
