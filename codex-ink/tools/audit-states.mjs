@@ -38,6 +38,9 @@ const sels = [];
 }
 
 // 每种页面状态一个 context。`click` 的是要真点出来、query 参数表达不了的状态。
+// `size` 是可选的视口尺寸（默认 1600x1000）——窄窗会触发 `data-fold~="scene"`，
+// 那是 2.39 起唯一还挂载 `.studio-menu` 的形态（桌面侧栏改由分隔条折叠），
+// 少了这一档，㉛ 那组 ::after 规则会被误报成 DEAD。
 const STATES = [
   { name: "浅色·有会话", scheme: "light", query: "pref=zh&ws=2&sess=6&turns=1" },
   { name: "暗色·有会话", scheme: "dark", query: "pref=zh&ws=2&sess=6&turns=1" },
@@ -50,6 +53,8 @@ const STATES = [
   { name: "浅色·左轨收起", scheme: "light", query: "pref=zh&ws=2&sess=6&turns=1", nav: "collapsed" },
   { name: "浅色·点收起侧栏", scheme: "light", query: "pref=zh&ws=2&sess=6&turns=1", click: ".studio-menu" },
   { name: "浅色·点开浏览器", scheme: "light", query: "pref=zh&ws=2&sess=6&turns=1", click: ".browser-action" },
+  { name: "窄窗·scene 折叠", scheme: "light", query: "pref=zh&ws=2&sess=6&turns=1", size: [560, 900] },
+  { name: "窄窗·scene 暗色", scheme: "dark", query: "pref=zh&ws=2&sess=6&turns=1", size: [560, 900] },
 ];
 
 const browser = await chromium.launch({ args: ["--no-proxy-server"] });
@@ -58,7 +63,7 @@ const best = new Array(sels.length).fill(0);
 for (const st of STATES) {
   const ctx = await browser.newContext({
     colorScheme: st.scheme,
-    viewport: { width: 1600, height: 1000 },
+    viewport: { width: st.size?.[0] ?? 1600, height: st.size?.[1] ?? 1000 },
     deviceScaleFactor: 1,
   });
   await ctx.addInitScript(({ scheme, nav }) => {

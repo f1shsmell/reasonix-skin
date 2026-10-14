@@ -1,5 +1,9 @@
 // 验证顶栏 ☰ 的悬停提示：两种状态下的文案、以及 hover 时到底出不出来。
 // 用法: node verify-tip.mjs <css>
+//
+// **注意视口**：2.39 起桌面布局不再渲染 `.studio-menu`（侧栏折叠改由分隔条负责），
+// 它只在窄窗 `data-fold~="scene"` 的抽屉形态下挂载 —— 所以这个探针必须在窄窗跑，
+// 宽窗下 `document.querySelector(".studio-menu")` 是 null。
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import os from "node:os";
@@ -11,9 +15,11 @@ const { chromium } = require("playwright");
 const css = fs.readFileSync(process.argv[2], "utf8");
 const BASE = process.env.SHOT_URL ?? "http://localhost:4399/perf.html";
 const QUERY = process.env.SHOT_QUERY ?? "pref=zh&ws=2&sess=6&turns=1";
+const VW = Number(process.env.TIP_VW ?? 560);
+const VH = Number(process.env.TIP_VH ?? 900);
 
 const browser = await chromium.launch({ args: ["--no-proxy-server"] });
-const ctx = await browser.newContext({ colorScheme: "light", viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+const ctx = await browser.newContext({ colorScheme: "light", viewport: { width: VW, height: VH }, deviceScaleFactor: 1 });
 await ctx.addInitScript(() => { try { localStorage.setItem("rx-theme", "light"); } catch (e) {} });
 const page = await ctx.newPage();
 const errs = [];

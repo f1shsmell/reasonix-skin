@@ -26,6 +26,15 @@
 
    分层结构与 studio.css 一致（:root / 媒体查询 / data-theme 两条），
    并在 studio.css 之后引入，因此同特异性下由后者胜出。
+
+   ── 复核到 2.39.0（2026-10-14）────────────────────────────────────────
+   2.36 → 2.39 换了三处外壳，本层跟着改了四处（详见各段注释）：
+     · 桌面不再渲染 ☰（.studio-menu），只在窄窗 scene 折叠下挂载 →
+       ④ 的"给 ☰ 让位"改成只在 scene 折叠生效；
+     · 品牌区换成两行 lockup（图片 wordmark + 副标题）→ ⑭/文末那段被
+       26px 顶死的高度要放开；
+     · 主题包词汇表新增 accentInk、圆角/密度改成 `--r-scale` / `--d-scale`
+       配方 → --accent-ink 改用官方同一条公式，--r-lg 乘上包的 corners 因子。
 */
 
 /* ── 本层自己定义的变量：只有包够不到的那几个 ──────────────────────────
@@ -33,9 +42,15 @@
    这种**样式关系**，色值本身全部由包下发。 */
 :root,
 :root[data-theme="light"] {
-  /* 派生：焦点环与"强调色文字"跟着包的 --accent 走 */
+  /* 派生：焦点环与"强调色文字"跟着包的 --accent 走。
+     --focus 官方默认是 var(--net)（偏青的蓝），不压就成了彩色焦点环，所以留在这里。
+     --accent-ink 自 2.39 起官方有了自己的 token（accentInk）：官方给默认值、
+     包能设、theme.ts 还有一条 accent ← 65% / fg 的兜底派生。本层不再自说自话，
+     改用**同一条公式** —— 这样 2.36 及更早（官方只引用不定义，全靠本层）拿到的
+     是与新版同一档的深强调色，2.39 不装包时也被对齐到同一语义，
+     装了包则由包压过（包规则是 :root:root[data-pack]，(0,3,0)）。 */
   --focus: var(--accent);
-  --accent-ink: var(--accent);
+  --accent-ink: color-mix(in srgb, var(--accent) 65%, var(--text));
 
   /* 外壳三档分层（Codex：chrome 灰 / 侧栏介于中间 / 内容最亮）。
      浅色里"后退"是更暗，所以侧栏往 bgSoft（= --surface）方向靠一档。
@@ -83,7 +98,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --focus: var(--accent);
-    --accent-ink: var(--accent);
+    --accent-ink: color-mix(in srgb, var(--accent) 65%, var(--text));
     --chrome-surface: var(--surface);
     --rail-surface: color-mix(in srgb, var(--page) 70%, var(--overlay) 30%);
     --cx-bubble: color-mix(in srgb, var(--link) 32%, var(--page));
@@ -92,19 +107,24 @@
 
 :root[data-theme="dark"] {
   --focus: var(--accent);
-  --accent-ink: var(--accent);
+  --accent-ink: color-mix(in srgb, var(--accent) 65%, var(--text));
   --chrome-surface: var(--surface);
   --rail-surface: color-mix(in srgb, var(--page) 70%, var(--overlay) 30%);
   --cx-bubble: color-mix(in srgb, var(--link) 32%, var(--page));
 }
 
-/* studio.css 在浅色下把品牌强调字写死成 #526a9f —— 那是个**硬编码**，
+/* studio.css（2.36 及更早）在浅色下把品牌强调字写死成 #526a9f —— 那是个**硬编码**，
    主题包够不到（它不在令牌体系里）。本层不再自己指定颜色，改成把它接到
    包的 `brand` 令牌上（tokens.go 里 brand 的注释正是"the product accent"）：
    theme-pack/ 两个包都把 brand 设成墨阶（浅色 #0D0D0D / 暗色 #FFFFFF），
    于是"零彩色 chrome"由**包**表达，本层只负责"这个元素该用 brand 这一档"。
    对方是 :root[data-theme="light"] .studio-brand-accent（0,3,0），
-   本层 (0,2,0) 压不住，仍需提权。 */
+   本层 (0,2,0) 压不住，仍需提权。
+
+   **2.39 起这条不再匹配**：品牌区换成了图片 wordmark（.studio-brand-logo），
+   前端里再没有 .studio-brand-accent 这个类；官方自己也在 studio.css:4210
+   写了 `:root[data-pack] .studio-brand-accent { color: var(--brand) }`。
+   按本项目对旧版本的一贯做法（同下面的 .studio-collapse）留着，不生效而已。 */
 :root .studio-brand-accent {
   color: var(--brand) !important;
 }
@@ -212,26 +232,34 @@
   color: var(--muted) !important;
 }
 
-/* ④ 顶栏压矮（54 → 44px），右边内边距收紧；左边给固定的 ☰ 让出位置。
-   2.36 把 ☰ 从 .chrome 里搬了出来，改成 `.app` 下 `position:fixed` 的一层
-   （studio.css: `.studio-menu { position: fixed; left: calc(var(--lights-w) + 10px) }`），
-   而本层 ⑰ 又把 .chrome 拉成通栏（margin-left:0）—— 于是面包屑落回 x=12，
-   正好压在 ☰（10..40）身上。实测：皮肤下 ☰ 在 `10,7 30x30`、
-   .crumb-folder 在 `12,14 16x16`，**交叠 16px**（整个文件夹图标）。
-   官方自己的算法是 `max(20px, calc(var(--lights-w) + 50px - var(--nav-w) - var(--rail-w)))`，
-   那是建立在 .chrome 从 x=312 起的前提上；通栏之后要改成从窗口左边直接量：
-   ☰ 右缘 = lights-w + 40，再留 12px 气口 → lights-w + 52。
-   Windows 上 --lights-w 是 0px，落到 52px；macOS 是 96px，落到 148px。 */
+/* ④ 顶栏压矮（54 → 44px），左右内边距收紧。
+   **2.39 起这里不再给 ☰ 让位**：桌面布局已经不渲染 .studio-menu 了
+   （2.36 它是 `.app` 下 position:fixed 的一层，2.39 把它从 Chrome.tsx 搬到
+   RailToggle.tsx，且按 LAYOUT.md 只在 `data-fold~="scene"` 的抽屉形态里挂载；
+   桌面侧栏的折叠/展开/调宽改由侧栏分隔条负责）。于是原来那条
+   `padding-left: calc(var(--lights-w) + 52px)` 会在宽窗口里留下一段没有来由的空白 ——
+   它当初的整个理由（躲开 10..40 的 ☰）已经不存在了，收回 12px。
+
+   窄窗（scene 折叠）下 ☰ 仍会挂到 `left: calc(var(--lights-w) + 10px)`，
+   而本层 ⑰ 把 .chrome 拉成了通栏 —— 那种形态下面包屑会压在它身上，
+   所以让位规则**改成只在 scene 折叠下生效**（data-fold 挂在 <html> 上）。 */
 .chrome {
   height: 44px !important;
-  padding: 0 12px 0 calc(var(--lights-w) + 52px) !important;
+  padding: 0 12px !important;
+}
+html[data-fold~="scene"] .chrome {
+  padding-left: calc(var(--lights-w) + 52px) !important;
 }
 
-/* ⑤ 卡片圆角提一档，贴近 Codex 的大圆角 */
+/* ⑤ 卡片圆角提一档，贴近 Codex 的大圆角。
+   **2.39 起不再写死**：官方把圆角做成 `calc(… * var(--r-scale, 1))`，
+   那个因子由**包**的 recipes.corners 下发（square=0 / soft=1 / round=1.5）。
+   本层仍要提这一档（Codex 的大圆角是 18px 而不是官方的 12px），但把因子乘进去，
+   于是包说 square 时圆角照样收成直角 —— 形状归包，档位归本层。 */
 :root,
 :root[data-theme="light"],
 :root[data-theme="dark"] {
-  --r-lg: 18px;
+  --r-lg: calc(18px * var(--r-scale, 1));
 }
 
 /* ⑥ 视图页签去掉"胶囊"分段控件感 —— Codex 没有这种元素，
@@ -247,9 +275,17 @@
 .tab[aria-selected="false"] {
   color: var(--muted) !important;
 }
-/* 页签条原来压着一条浅灰横带（--surface 半透明），Codex 没有这条 */
+/* 页签条不该有自己的底色 —— 它压在内容面（pane）上：
+   **2.39 官方明确写成 `.pane > .tabs { background: transparent }`**
+   （2.36 是 `color-mix(in srgb, var(--surface) 94%, transparent)` + 一条 `--border` 底线；
+   再往前是一条独立的浅灰横带）。
+   本层从 2.27 起一直给它涂不透明的 `--page`，那在"页面色≈内容色"的年代看不出来，
+   一装深色/浅色对比明显的包就成了**一条白带**：墨白包下 `--page` 是 `#FFFFFF`、
+   它下面的 pane 是 `--surface` `#F6F6F6`，实测差 9 —— 页签条与紧跟其下的对话内容
+   一眼就是两种颜色（使用者 2026-10-14 报的"色差"）。
+   现在保持透明，与 pane 同面；壁纸下也不再另行上色（见 ㉔）。 */
 .tabs {
-  background: var(--page) !important;
+  background: transparent !important;
 }
 .ptab[aria-selected="true"] {
   background: transparent !important;
@@ -399,7 +435,12 @@
 /* ⑫ 会话列表按 Codex 的密度收：
    · 标题单行省略（原本 clamp 到 2 行，长标题一折整列就散了）
    · 行高 42 → 32px
-   · 去掉"2 个项目 / 6 会话"这类计数 —— Codex 的列表里没有数字 */
+   · 去掉"2 个项目 / 6 会话"这类计数 —— Codex 的列表里没有数字
+     注：藏的是 `.wsmeta`（工作区行的"N 个项目 / N 会话"）与 `.rmtsub`
+     （远端主机行的"N 会话"），两者在 2.39 里仍由 Workspaces.tsx / RemoteHosts.tsx 渲染。
+     2.39 另加了一层**树行**（treerows.css：`.machrow` 机器行、`.wsrow` 项目行、
+     `.rowcount`，以及 hover 才露出的 `.rowbtns`），官方的设计是"计数在 hover / 展开时
+     让位给行操作"。那层本层不碰：它是官方的交互，不是 Codex 观感要收的计数。 */
 .rail .sesstitle > span {
   display: block;
   -webkit-line-clamp: unset;
@@ -432,7 +473,14 @@
   display: none !important;
 }
 
-/* ⑭ 侧栏头部：去掉品牌方块，只留字；并与上边栏对齐（同高，连成一片）。 */
+/* ⑭ 侧栏头部：去掉品牌方块（2.27–2.36 的 .studio-brand-mark），只留字。
+   **2.39 起这个类不存在了**（前端里再没有它）：品牌区换成两行 lockup ——
+   `.studio-brand-lockup`（24px 的图片 wordmark + 9px 副标题），
+   由 studio.css 自己的 `.studio-brand-logo` 规则管（浅色是**原色、带品牌蓝**的
+   logo-wordmark.svg，暗色 brightness(0) invert(1) 反白）。
+   按使用者的选择，**保留官方那份彩色 wordmark**，本层不把它收灰阶，
+   只负责修 2.39 的布局（见文末「侧栏头部收成一行」那段被撑高的 26px）。
+   下面这两条对 2.27–2.36 仍然有效，留着不碍事。 */
 .studio-brand-mark {
   display: none !important;
 }
@@ -467,10 +515,12 @@
 
 /* ⑰ 顶栏横跨整个宽度，与左轨连成一个灰色"L"。
    <Chrome> 本来就是 .app 的第一个子元素（在 .cols 之前），
-   只是 studio.css:495 用 margin-left: var(--rail-w) 把它推到了侧栏右边 ——
-   于是收起侧栏时它会跟着左移，那个 ☰ 的位置就一直在变。
-   去掉这个 margin，顶栏成为通栏一行：☰ 钉在窗口左上角不再移动，
-   左轨与侧栏都从它下面开始，上面的灰与左边的灰连成一片。 */
+   只是 studio.css 用 margin-left: var(--rail-w) 把它推到了侧栏右边 ——
+   于是收起侧栏时它会跟着左移，通栏之后不会再动。
+   去掉这个 margin，顶栏成为通栏一行：左轨与侧栏都从它下面开始，
+   上面的灰与左边的灰连成一片。
+   （2.27–2.36 时这条的动机还要顺带把 ☰ 钉在窗口左上角；2.39 桌面没有 ☰ 了，
+   理由只剩"通栏本身"，见 ④。） */
 .app {
   --chrome-h: 44px !important;
 }
@@ -507,13 +557,14 @@
   margin-top: 8px;
 }
 
-/* 切换按钮只留顶栏那一个（位置固定）。侧栏头部这个会随侧栏一起移动，去掉。
+/* 切换按钮只留一个（位置固定）。侧栏头部这个会随侧栏一起移动，去掉。
    **2.36 起 .studio-collapse 已从 Sidebar.tsx 整个删掉**（studio.css 里那几条
    `.studio-collapse` 规则也一并删除），所以这一条如今是死规则、不会再匹配。
    留着它不影响任何东西 —— 2.27–2.35 的 Sidebar 还有这个按钮，多打一条
    也就不用为老版本分叉 —— 但要知道它在 2.36 上不生效。
-   真正的"只留一个"如今由官方保证：顶栏那个 .studio-menu 是 .app 下的
-   fixed 层，侧栏头部不再有第二个开关（见 ④ 与 ㉛）。 */
+   **2.39 起"只留一个"这件事连顶栏那个按钮也不存在了**：桌面侧栏的折叠改由
+   分隔条负责（LAYOUT.md: "The desktop sidebar's divider owns collapse, expansion
+   and width adjustment"），☰ 只在窄窗抽屉形态下挂载（见 ④ 与 ㉛）。 */
 .studio-collapse {
   display: none !important;
 }
@@ -535,10 +586,11 @@
   background: var(--chrome-surface, var(--surface)) !important;
 }
 .rail,
-.studio-rail-head,
-.tabs {
+.studio-rail-head {
   background: var(--page) !important;
 }
+/* 注：`.tabs` 曾在这条分组里（涂成 --page）。2.39 起去掉 —— 理由见 ⑥ 段的注释，
+   它必须保持透明才与身下的 pane 同面。这里只留下"没有那条底边线"与内边距。 */
 .tabs {
   border-bottom: none !important;
   padding-top: 2px !important;
@@ -702,16 +754,12 @@
 :root:root[data-theme="light"][data-bg] :is(.rail, .side) {
   background: color-mix(in srgb, var(--rail-surface, var(--page)) 86%, transparent) !important;
 }
-/* 页签条与侧栏头部：本层 ⑳/㉑ 把它们涂成了不透明的 --page / --rail-surface，
-   同样要让路。
-   侧栏头部要**透明**而不是再来一层半透明 —— 它是 .rail 的子元素，.rail 已经画过
+/* 侧栏头部：本层 ⑳/㉑ 把它涂成了不透明的 --rail-surface，同样要让路。
+   它要**透明**而不是再来一层半透明 —— 它是 .rail 的子元素，.rail 已经画过
    一层 0.86 了；这里再叠一层 0.86，两层相乘等于把壁纸洗没（实测该点
-   spread 只剩 3，肉眼就是块死白）。官方表里 .studio-rail-head 本来就没有底色。 */
-:root:root[data-bg] .tabs,
-:root:root[data-theme="light"][data-bg] .tabs,
-:root:root[data-theme="dark"][data-bg] .tabs {
-  background: color-mix(in srgb, var(--page) 80%, transparent) !important;
-}
+   spread 只剩 3，肉眼就是块死白）。官方表里 .studio-rail-head 本来就没有底色。
+   （页签条原先也在这组里（80% 的 --page）；2.39 起本层已让它整体透明
+   —— 见 ⑥ —— 透明就是最大的让路，不必再单独列一条。） */
 :root:root[data-bg] .studio-rail-head {
   background: transparent !important;
 }
@@ -757,17 +805,23 @@
    .studio-collapse 已被下面 ⑰ 隐藏，右侧正好让出来。 */
 .studio-rail-head {
   position: relative;
-  padding: 10px 12px 8px !important; /* 10 + 26 + 8 = 44，与 .chrome 等齐 */
+  padding: 10px 12px 8px !important;
 }
 .studio-brand {
   padding: 0 !important;
   padding-right: 30px !important; /* 给右侧搜索图标让位 */
   min-height: 0 !important;
-  height: 26px;
+  /* **2.39 起品牌是两行，这一档要放开**：`.studio-brand-lockup` 是
+     24px 图片 + 9px 副标题 + 1px row-gap = 34px 高。本层原先钉的是 26px
+     （"品牌 + 搜索"收成一行、与 .chrome 等齐的算法：10 + 26 + 8 = 44）——
+     那个算法在 2.39 上会把两行 lockup 上下各裁一刀：实测图片落在 y=50..74、
+     副标题落在 y=75..84，而 .studio-brand 只有 54..80，图片顶 4px 与
+     副标题底 4px 都被切掉（grid 居中 + 溢出）。此处按 lockup 的自然高度放开。 */
+  height: 34px;
 }
 .studio-search {
   position: absolute;
-  top: 10px;
+  top: 13px; /* 10 + (34 - 28) / 2：与两行品牌垂直居中（旧值 10px 是单行时代的） */
   right: 12px;
 }
 
@@ -1031,17 +1085,19 @@
    要真正"点一下进入项目目录"，只能 fork 改 Electron 主进程。 */
 
 /* ㉛ 顶栏 ☰（展开 / 隐藏侧栏）的悬停提示。
-   官方这个按钮只有 aria-label、**没有 title**（Chrome.tsx:58），所以 hover 什么都不弹；
+   官方这个按钮只有 aria-label、**没有 title**，所以 hover 什么都不弹；
    顶栏其他按钮都有 title，只有它是光秃秃的。
    而它的状态就写在 aria-pressed 上（aria-pressed={rail}），于是纯 CSS 也能给出
    随展开/收起切换的文案 —— 不需要脚本。
 
-   **2.36 的选择器变了**：☰ 不再是 `.chrome .studio-menu`，而是 `.app` 下
-   `position:fixed` 的一层（Chrome.tsx 把它挪出了 `<div className="chrome">`），
-   所以前缀从 `.chrome .studio-menu` 改成 `.studio-menu`。
-   它自己也已经是 position:fixed，`position:relative` 那条不必再写
-   （写了会把它从 fixed 打回 relative，反而把按钮拽进文档流）。
-   fixed 层的 containing block 是视口，提示挂在它下面不会被裁。 */
+   **选择器沿革**：2.36 起 ☰ 不再是 `.chrome .studio-menu`，而是 `.app` 下
+   `position:fixed` 的一层，所以前缀去掉了 `.chrome`；它自己已是 fixed，
+   `position:relative` 那条不必再写（写了会把它打回 relative、拽进文档流）。
+
+   **2.39 起它只在窄窗（`data-fold~="scene"` 的抽屉形态）里挂载** ——
+   桌面侧栏的折叠改由分隔条负责，所以下面这三条在宽窗口里不匹配任何元素。
+   这不是死规则：实测窄窗 560px 下 ☰ 在 `10,7 30x30`，`::after` 文案是"展开侧栏"。
+   （`tools/audit-states.mjs` 因此补了一个窄窗状态，否则会把它误报成 DEAD。） */
 .studio-menu::after {
   content: "收起侧栏";
   position: absolute;

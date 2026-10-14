@@ -28,6 +28,11 @@ pwsh -File install.ps1
 > 装包即包的色、换包即换色。**只装覆盖层不装包**也能用，但那时界面是
 > Studio 自带调色板（琥珀强调色），只有布局与密度是 Codex 的。
 > 理由与实测见 [`codex-ink/README.md`](codex-ink/README.md) 第三、六节。
+>
+> **2.39 已适配**（2026-10-14）：官方这一版换了三处外壳 —— 桌面不再渲染 ☰
+> （侧栏折叠改由分隔条负责，☰ 只在窄窗抽屉形态挂载）、品牌区换成两行图片
+> lockup、主题包多出 `accentInk` 与圆角/密度配方。覆盖层与主题包（v1.2.0）
+> 都已跟上，改动逐条记在 `codex-ink/README.md` 的更新日志里。
 
 `install.ps1 -Restore` 或 `uninstall.ps1` 可还原覆盖层。
 
@@ -36,7 +41,7 @@ pwsh -File install.ps1
 | 路径 | 内容 |
 | --- | --- |
 | `codex-ink/` | Codex Ink 正本：`codex-ink.css`、`install.ps1` / `uninstall.ps1`、`theme-pack/`、`preview/`、`tools/` |
-| `codex-ink/README.md` | **完整文档**——为什么走覆盖层而不是插件、token 能力边界（2.36 复核）、覆盖层逐项做了什么、复核脚本用法 |
+| `codex-ink/README.md` | **完整文档**——为什么走覆盖层而不是插件、token 能力边界（2.39 复核）、覆盖层逐项做了什么、复核脚本用法 |
 
 路由、token 能力边界、逐条改动与复核方法都写在那份文档里，这里不重复。
 

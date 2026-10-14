@@ -10,9 +10,10 @@
 2. **主题包**（`theme-pack/`）——纯官方机制，Studio 2.29 起用上
    `link / brand / halo / labelAgent` 四个装饰角色 token。
 
-不是 fork——原因见第一节。覆盖层已按 **2.36.0** 复核：引用的 115 条选择器
-在多状态扫描下 99 条命中（余下 16 条的每一条都查清了原因，见第三节）；
-2.27 / 2.32 / 2.33 / 2.36 四代外壳布局差异也都已适配。
+不是 fork——原因见第一节。覆盖层已按 **2.39.0** 复核：引用的 114 条选择器
+在 13 种页面状态（含窄窗 scene 折叠）下扫描，95 条命中（余下 19 条的每一条
+都查清了原因，见第三节）；2.27 / 2.32 / 2.33 / 2.36 / 2.39 五代外壳布局差异
+也都已适配。
 
 **2.36 起分工变了**：**颜色归主题包，覆盖层只管样式。** 覆盖层不再自带调色板，
 `theme-pack/` 从"可选"变成"配色的唯一来源"——装包即包的色，换包即换色。
@@ -146,7 +147,108 @@ Select-String -Path "$env:LOCALAPPDATA\Programs\Reasonix Studio\resources\fronte
 构建性能台 → Playwright 量计算样式与命中测试 → 改 `codex-ink.css`。
 `install.ps1` 的注入方式**与版本无关**，这几轮升级从未为它改过一行。
 
-**2.36.0**（本轮，2026-10-12）
+**2.39.0**（本轮，2026-10-14）
+
+这一轮改了四处，全在 `codex-ink.css`，外加主题包补一个 token、三个复核脚本跟着改。
+**2.39 动了三处外壳**，每一处都让旧写法失去前提：
+
+**① 桌面不再渲染 ☰（`.studio-menu`）→ ④ 的"让位"收回。**
+2.36 时 ☰ 是 `.app` 下 `position:fixed` 的一层，覆盖层把 `.chrome` 拉成通栏后
+面包屑会压在它身上，于是 ④ 给了 `padding-left: calc(var(--lights-w) + 52px)`。
+2.39 把 ☰ 从 `Chrome.tsx` 搬到 `RailToggle.tsx`，并且按 `LAYOUT.md`：
+*"The desktop sidebar's divider owns collapse, expansion and width adjustment"* ——
+桌面侧栏的折叠/展开/调宽改由**分隔条**负责（抓手、Enter/Space、方向键、Home/双击），
+`.studio-menu` **只在窄窗 `data-fold~="scene"` 的抽屉形态里挂载**。
+实测：1600 / 1024 窗口下 `.studio-menu` 不在 DOM；560 窗口下在 `10,7 30x30`。
+那条 52px 于是成了没有来由的空白 —— 收回 12px，另立一条
+`html[data-fold~="scene"] .chrome` 只在抽屉形态让位（`data-fold` 挂在 `<html>` 上）。
+
+**② 品牌区换成了两行 lockup → 被钉死的 26px 会把它裁掉。**
+2.36 的品牌是 `.studio-brand-mark`（28px 方块）+ 文字，覆盖层 ⑭ 把方块
+`display:none` 只留字，并把 `.studio-brand` 钉成 26px —— 那是"品牌 + 搜索收成
+一行、与 `.chrome` 等高（10 + 26 + 8 = 44）"的算法。
+2.39 换成 `.studio-brand-lockup`：`img.studio-brand-logo`（118×24 的
+`logo-wordmark.svg`）+ 9px 副标题，24 + 9 + 1 = **34px**。26px 一钉，
+两行各自被裁一刀 —— 实测图片落在 `y=50..74`、副标题落在 `y=75..84`，
+而 `.studio-brand` 只有 `54..80`，**上下各切 4px**。
+修法：放开到 34px，搜索图标随之从 `top:10px` 移到 `13px`（10 + (34−28)/2）。
+侧栏头部因此由 167px 变成 **175px** —— 这是两行品牌的自然结果，其余落点不变。
+
+> wordmark 本身**按使用者的选择保留官方那份彩色**（浅色是带品牌蓝的原色，
+> 暗色官方自己 `brightness(0) invert(1)` 反白）。本层没有把它收灰阶，
+> 也不再把 `.studio-brand-mark` 这类 2.39 已不存在的元素算作"还在管"。
+
+**③ 主题包多了 `accentInk`，圆角/密度改成配方 → 两条硬编码要跟。**
+`internal/ext/theme/tokens.go` 新增 `accentInk`（→ `--accent-ink`），
+`theme.ts` 也给了默认值与一条 `accent ← 65% / fg` 的兜底派生；
+`--r-xs/sm/md/lg` 同时改写成 `calc(… * var(--r-scale, 1))`，因子由**包**的
+`recipes.corners`（square=0 / soft=1 / round=1.5）下发。
+于是本层两处跟着改：
+
+- `--accent-ink` 不再由本层自说自话（原来直接等于 `--accent`），改用**官方同一条
+  公式** `color-mix(in srgb, var(--accent) 65%, var(--text))`。这样 2.36 及更早
+  （官方只引用这个变量、不定义）拿到的仍是同一档深强调色，2.39 不装包时也
+  对齐到同一语义，装了包则由包压过。
+- `--r-lg: 18px` 改成 `calc(18px * var(--r-scale, 1))`：本层仍要提这一档
+  （Codex 的大圆角是 18px，官方默认 12px），但把包的因子乘进去 ——
+  包说 `square` 时圆角照样收成直角。**形状归包，档位归本层。**
+
+**④ 复核工具跟上 2.39**
+
+- `tools/audit-states.mjs` 新增两个**窄窗（560×900）状态**，并支持逐状态视口：
+  2.39 起 ☰ 只在窄窗挂载，少了这一档，㉛ 那组 `::after` 规则会被误报成 DEAD。
+- `tools/verify-tip.mjs` 同样改到窄窗跑（宽窗下 `.studio-menu` 是 `null`）。
+- `tools/pack.mjs` 跟上 2.39 的 `theme.ts`：SURFACE 表加 `accentInk`、
+  DERIVED 加同一条兜底、`recipes` 下发 `--r-scale` / `--d-scale`、
+  `background.textGlow:"none"` 下发 `--flow-text-shadow`。
+- `theme-pack/` 两个包补 `accentInk`（墨白=`accent` 同值；蓝调取深/亮蓝
+  `#2A6FB1` / `#7ABFFF`），manifest 升到 **1.2.0**。
+
+**⑤ 使用者反馈：窗格页签条的「色差」（同日修）**
+
+装上之后使用者报"加主题包有色差、还会折叠"。量下来头一件就落在页签条上：
+
+| | `.pane > .tabs` 的背景 |
+| --- | --- |
+| 2.36 官方 | `color-mix(in srgb, var(--surface) 94%, transparent)` + 一条 `--border` 底线 |
+| **2.39 官方** | **`transparent`**（页签条与内容同一个面） |
+| 本层（2.27 起） | `background: var(--page) !important` —— 压过官方（`!important` 赢过特异性） |
+
+于是墨白包下：页签条 = `--page` `#FFFFFF`，紧挨着的 pane = `--surface` `#F6F6F6`
+（实测 `rgb(255,255,255)` vs `rgb(246,246,246)`）—— **中间那条白带就是"色差"**，
+页签条看着像一块盖在对话内容上的板。
+
+这条规则是 2.27 时代留下的（那时页签条自带一条浅灰横带，本层想让它跟页面色一致），
+在"页面色≈内容色"的包里看不出来，一装对比明显的包就露出来。2.39 官方把它改成透明，
+本层也就不该再替它上色：
+
+- ⑥ 段那条改成 `background: transparent !important`（跟随官方 2.39）；
+- ⑳ 段的分组里去掉 `.tabs`（只留"没有那条底边线"与内边距）；
+- ㉔ 里给 `[data-bg] .tabs` 的 80% 让路规则一并删掉 —— 它本来就是为"本层涂过色"
+  而写的，现在页签条整体透明，透明就是最大的让路。
+
+实测修后：浅色 `.pane` 与 `.pane > .tabs` 同为 `rgb(246,246,246)`、暗色同为
+`rgb(15,15,15)`；盒子不变（页签条仍 `312,44 1288x41`），高饱和彩色仍只剩
+浏览器按钮的 `--net` 蓝与远端 pip。
+
+> **"遮挡 / 折叠"那一半同日查清了：是官方 2.39 自己的改动，与皮肤无关。**
+> 把本层与主题包全部卸载、重启后仍复现，且能在源码里对上 ——
+> 2.39 把 `.pane > .tabs` 的底色与底边线**一起**去掉了：
+>
+> | `.pane > .tabs` | 2.36 | 2.39 |
+> | --- | --- | --- |
+> | 背景 | `color-mix(in srgb, var(--surface) 94%, transparent)` | **`transparent`** |
+> | 底边线 | `border-bottom-color: var(--border)` | **`transparent`** |
+>
+> 页签条与滚动区本来就是**零间隙**（实测页签条底边 `y=95` = 滚动区顶边 `y=95`）：
+> 有那条 `--border` 线时，滚过去的内容会在一条线上被"切断"，读起来是分区的；
+> 两条都去掉之后，内容就紧贴页签条下边缘滑过，看上去就是"视图标签遮住了对话内容"。
+> 已作为独立反馈报给官方（`esengine/DeepSeek-Reasonix#13007`）。
+> **本层不代它补线** —— 那是官方版面的事，皮肤不该去盖住官方的排版决定。
+
+`preview/` 八张图全部按 2.39 重出。
+
+**2.36.0**（2026-10-12）
 
 这一轮与以往不同：**不只是"适配新版外壳"，而是把配色整个交还给主题包，
 并把壁纸这条路打通。** 前者是本项目的新要求（覆盖层只改样式、不改颜色），
@@ -381,9 +483,23 @@ Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `
 关键变量 `--nav-w` / `--rail-w` / `--side-w` / `--shadow-float` 也都在。
 覆盖层无需为 2.29 改选择器。
 
-**2.36.0 复核**（2026-10-12）：覆盖层引用的 **114 条选择器**，跨 **11 种页面状态**
-（浅色/暗色、有图包/sky 包/无包、空态、首次开屏、左轨 on/collapsed/off、
-点开浏览器）逐条数命中 —— **98 条至少在一个状态下命中**。余下 16 条全部查清：
+**2.39.0 复核**（2026-10-14）：覆盖层引用的 **114 条选择器**，跨 **13 种页面状态**
+（2.36 那 11 种之外补了窄窗 scene 折叠与它的暗色 —— 2.39 起 ☰ 只在那一种形态里挂载）
+逐条数命中 —— **95 条至少在一个状态下命中**。余下 **19 条**全部查清：
+
+| 命中 0 的 | 为什么 | 算死规则吗 |
+| --- | --- | --- |
+| `.studio-collapse` ×2 | 2.36 起 `Sidebar.tsx` 就没有这个元素了 | 是（保留给 2.27–2.35） |
+| `.studio-brand-mark` | 2.39 起品牌区换成图片 lockup，这个方块不存在了 | 是（保留给 2.27–2.36） |
+| `:root .studio-brand-accent` | 同上（前端里已无此类）；官方自己改在 `:root[data-pack]` 下接 `--brand` | 是（保留给 2.36 及更早） |
+| `.rail .wsmeta, .rail .rmtsub` | 两者 2.39 仍由 `Workspaces.tsx` / `RemoteHosts.tsx` 渲染 —— 只是探针里没有"多工作区 / 远端主机"的会话树 | 否，需状态 |
+| `.oobe` | 开场仪式那一屏；性能台的 `welcomeSeen()` 直接返回 `true`，走不到 | 否，需首启 |
+| `.flow .opt[data-on]` | 要一张提问卡；探针里没走到那个回合 | 否，需状态 |
+| `.ptab[aria-selected="true"]` | 官方 studio.css 把 `.panetabs` 整条藏了（**2.39 删掉了 `display:none` 那条，但默认仍关着**：session tabs 是 Settings → Appearance 里的 opt-in） | 是（官方自己关的） |
+| ㉕/㉙ 的 `.railfoot` 那一组 ×12 | 判据就是"左轨不在屏幕上"，所以左轨在时**应当**不命中 | 否，按设计 |
+
+**2.36.0 复核**（2026-10-12，历史）：114 条选择器 / 11 种状态，98 条命中、
+16 条命中 0：
 
 | 命中 0 的 | 为什么 | 算死规则吗 |
 | --- | --- | --- |
@@ -398,15 +514,16 @@ Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `
 > 以及各种状态型规则**必然**报 0。2.36 这一轮它报 48 条，实际在任何状态下都
 > 命中 0 的只有 16 条 —— 三分之二是误报。判断死规则前先把页面摆到该在的状态。
 
-真正变的是**外壳的布局层**，四代改法各不相同：
+真正变的是**外壳的布局层**，五代改法各不相同：
 
-| | 2.27 | 2.32 | 2.33 | 2.36 |
-| --- | --- | --- | --- | --- |
-| `.cols` 列序 | `0 var(--rail-w) …` | `var(--rail-w) var(--nav-w) …` | `var(--nav-w) var(--rail-w) …` | 同 2.33 |
-| 图标轨 `.nav` | `display:none !important` | `grid-column:2`（流内第 2 轨） | `position:fixed; inset:0 auto 0 0`（左边缘固定层） | 定宽 + 平移：`width:var(--nav-open)` + `translate:calc(var(--nav-w) - var(--nav-open))`，z-index 13，去掉 `overflow:hidden` |
-| 侧栏 `.rail` | `inset:0 auto 0 0` | 同 2.27 | `inset:0 auto 0 var(--nav-w)` | 同 2.33 |
-| 顶栏 `.chrome` | `margin-left: var(--rail-w)` | 同 2.27 | `margin-left: calc(var(--nav-w) + var(--rail-w))` | 同 2.33，但 `padding-left` 改为给固定的 ☰ 让位 |
-| ☰ `.studio-menu` | 在 `.chrome` 内 | 同 2.27 | 同 2.27 | **移出 `.chrome`**，成 `.app` 下 `position:fixed` 的一层 |
+| | 2.27 | 2.32 | 2.33 | 2.36 | 2.39 |
+| --- | --- | --- | --- | --- | --- |
+| `.cols` 列序 | `0 var(--rail-w) …` | `var(--rail-w) var(--nav-w) …` | `var(--nav-w) var(--rail-w) …` | 同 2.33 | 同 2.33 |
+| 图标轨 `.nav` | `display:none !important` | `grid-column:2`（流内第 2 轨） | `position:fixed; inset:0 auto 0 0`（左边缘固定层） | 定宽 + 平移：`width:var(--nav-open)` + `translate:calc(var(--nav-w) - var(--nav-open))`，z-index 13，去掉 `overflow:hidden` | 同 2.36 |
+| 侧栏 `.rail` | `inset:0 auto 0 0` | 同 2.27 | `inset:0 auto 0 var(--nav-w)` | 同 2.33 | 同 2.33；但折叠改由**分隔条**负责（`RailToggle` 只在窄窗挂载），窄/中窗下 `.rail` 由官方自动折到 1px |
+| 顶栏 `.chrome` | `margin-left: var(--rail-w)` | 同 2.27 | `margin-left: calc(var(--nav-w) + var(--rail-w))` | 同 2.33，但 `padding-left` 改为给固定的 ☰ 让位 | 同 2.33；**不再给 ☰ 让位**（桌面没有 ☰ 了） |
+| ☰ `.studio-menu` | 在 `.chrome` 内 | 同 2.27 | 同 2.27 | **移出 `.chrome`**，成 `.app` 下 `position:fixed` 的一层 | **只在窄窗 `data-fold~="scene"` 的抽屉形态里挂载**（`RailToggle.tsx`，z-index 40 → 39） |
+| 品牌区 `.studio-brand` | 方块 + 两行字 | 同 | 同 | `.studio-brand-mark` 方块 + 字 | **图片 lockup**：`img.studio-brand-logo`（118×24）+ 9px 副标题 = 34px |
 
 皮肤因此补了五处（都写在 `codex-ink.css` 里，且对别的版本无副作用）：
 
@@ -435,7 +552,7 @@ Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `
    建立在"`.chrome` 从 x=312 起"的前提上，通栏后要改成从窗口左边直接量：
    `padding-left: calc(var(--lights-w) + 52px)`。
 
-四版一致性（同一组探针，皮肤生效后）：
+五代一致性（同一组探针，皮肤生效后）：
 
 | 版本 | `.nav` | `.rail` | ☰ 命中 | ☰ 位置 |
 | --- | --- | --- | --- | --- |
@@ -443,6 +560,7 @@ Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `
 | 2.32 | `0,44 48x956`（static，padding-top 8） | 同上 | `path` | 在 `.chrome` 内 |
 | 2.33 | `0,44 48x956`（**fixed**，padding-top 8） | 同上 | `path` | 在 `.chrome` 内 |
 | 2.36 | `0,44 48x956`（fixed，`translate: 0px`） | 同上 | **`studio-menu`** | **`.app` 下的 fixed 层（10,7 30x30）** |
+| 2.39 | `0,44 48x956`（fixed，`translate: 0px`） | 同上 | **宽窗无元素；窄窗 `studio-menu`** | 窄窗（560px）为 `10,7 30x30`；桌面改由侧栏分隔条折叠 |
 
 左轨三种模式下（2.36 实测，皮肤生效）：
 
@@ -481,11 +599,12 @@ Studio 装在非默认路径时得走命令行把目录递进去 —— 两个 `
 | | 改造前 | 改造后 |
 | --- | --- | --- |
 | 最左图标轨 `.nav` | `display:none`，0×0 | 48×956，10 个图标（2.33–2.35 是 8 个，那时「会话」被隐藏，见 changelog ④） |
-| 顶栏 `.chrome` | 从 x=264 起（被侧栏推开），高 54 | **通栏 0..1600，高 44** |
-| 侧栏头部 `.studio-rail-head` | 333px（品牌行 / 新建 / 搜索三行） | **167px**（品牌行 26px，搜索钉在右侧） |
+| 顶栏 `.chrome` | 从 x=312 起（被侧栏推开），高 54 | **通栏 0..1600，高 44**；左内边距 12px（2.36 时为给 ☰ 让位而是 52px，2.39 桌面已无 ☰） |
+| 侧栏头部 `.studio-rail-head` | 333px（品牌行 / 新建 / 搜索三行） | **167px**（品牌行 26px，搜索钉在右侧）；**2.39 起品牌是两行 lockup，头部随之到 175px** |
 | 侧栏脚 `.railfoot` | 124px（钱包 / 反馈 / 账户） | **整块隐藏**，会话列表铺到底（2.27–2.33）；**2.34 起官方只在左轨不可见时才渲染它**，那时皮肤也照旧放行（见 §四） |
 | 外壳三档 | nav 与 map 同调 | 浅 `246` / 侧栏 `252` / 内容 `255`；暗 `15` / `22` / `17`（由包的 `--page` / `--surface` / `--overlay` 混出，换包跟着走） |
 | 空态幽灵 logo | 30×30 | 64×64 |
+| 品牌 wordmark | —（2.36 及更早是方块 + 文字） | **2.39 起是官方那张图片 lockup**（118×24 + 9px 副标题），按使用者选择保留原色 |
 
 图见 `preview/`：
 
@@ -774,13 +893,20 @@ codex-ink/
 然后在 Settings → Appearance 里选「Codex Ink 墨白」。需要 Studio 2.29+
 （四个装饰角色 token 从 2.29 起生效；更早的版本会忽略它们）。
 
+> **Windows 上 `--link` 可能失败。** 实测 2.39 + Windows 10 下它报
+> `dependency failure (*os.LinkError)` —— 创建符号链接要开发者模式或管理员权限。
+> 去掉 `--link` 走复制模式即可：`reasonix plugin install <目录>\theme-pack --yes`，
+> 安装结果一样（`mode: copy`），只是**改完包要重新装一次**。
+> 目标已存在时先 `reasonix plugin remove codex-ink --yes` 再装
+> （`--replace` 在同一环境下同样会撞 `*os.LinkError`）。
+
 `tools/` 里的脚本用来复核这套改动：
 
 | 脚本 | 作用 |
 | --- | --- |
 | `measure.mjs` | 变量表 + 高饱和彩色扫描（只算真正画出来的元素）+ 关键盒子 |
 | `audit.mjs` | 逐条统计覆盖层选择器在真实页面里命中多少元素（**单页面，会误报，见下**） |
-| `audit-states.mjs` | 同上，但跨 11 种页面状态各数一遍取最大命中 —— **判断死规则用这个** |
+| `audit-states.mjs` | 同上，但跨 13 种页面状态各数一遍取最大命中 —— **判断死规则用这个**（2.39 起含两个窄窗 scene 折叠状态，因为 ☰ 只在那里挂载） |
 | `pack.mjs` | 把一个 `theme.json` 按 2.36 的方式装进页面（`theme.ts` 的忠实复刻），供其它脚本复用 |
 | `dom.mjs` | 打印某个容器的 DOM 子树（类名 + 盒子 + 隐藏标记） |
 | `shot.mjs` | 出图（`SHOT_FULL=1` 整页，`SHOT_QUERY=` 换形态，`SHOT_PACK=` 连包一起装） |
@@ -788,15 +914,15 @@ codex-ink/
 | `pixel.mjs` | 采样 PNG 的像素值——"这块到底是什么颜色"，判断有没有色差用这个，不要靠肉眼 |
 | `at.mjs` | 给定坐标输出该点最上层元素链与各自背景，并打印某元素的关键计算样式 |
 | `scanpng.mjs` | 整图扫描高饱和彩色像素，按颜色聚簇报位置——用来验证"界面真的灰阶了吗"，包括真实 Studio 的截图 |
-| `verify-tip.mjs` | 验证顶栏 ☰ 的悬停提示：展开/收起两种状态下 `::after` 的文案、以及 hover 时的透明度与位置 |
+| `verify-tip.mjs` | 验证顶栏 ☰ 的悬停提示：展开/收起两种状态下 `::after` 的文案、以及 hover 时的透明度与位置。**必须在窄窗跑**（2.39 起 ☰ 只在 `data-fold~="scene"` 挂载） |
 | `verify-count.mjs` | 把侧栏压到不同宽度，看筛选条上的计数还在不在 |
 | `verify-ctx.mjs` | 核对用量五段色（`--cat-1..5` / `--io-*`）没被压灰 |
 
 它们需要一份对应版本的 `frontend-next` 与 Playwright：
 
 ```bash
-# 取对应 tag 的源码（本项目按 studio-v2.36.0 复核）
-git clone --depth 1 --branch studio-v2.36.0 https://github.com/esengine/DeepSeek-Reasonix repo
+# 取对应 tag 的源码（本项目按 studio-v2.39.0 复核）
+git clone --depth 1 --branch studio-v2.39.0 https://github.com/esengine/DeepSeek-Reasonix repo
 cd repo/desktop/frontend-next
 pnpm install --frozen-lockfile
 # pnpm 11 会拦下 esbuild 的构建脚本；直接调 vite 绕开
@@ -833,12 +959,13 @@ RX_REPO="$PWD" SHOT_PACK=../../codex-ink/theme-pack/codex-ink/theme.json \
 | --- | --- |
 | 外壳分层 | 三档取自包的 `--page` / `--surface` / `--overlay`：chrome = `--surface`，侧栏 = 浅色 `--page` 65% + `--surface` 35%、暗色 `--page` 70% + `--overlay` 30%，内容 = `--page`。包为墨白时落到浅 `246 / 252 / 255`、暗 `15 / 22 / 17` —— 正是改造前实测的那三档 |
 | 壁纸 | 包带图（`data-bg`）时外壳**让路**：chrome / 侧栏 80%（浅色 86%）半透明、清掉 `backdrop-filter`，`.tabs` / `.studio-rail-head` / `.compose` 一并放开。全屏扫描 97.5%（浅色）/ 99.6%（暗色、空态）看得见图，无整块遮挡 |
-| 结构 | 图标轨回到最左并钉住 `--nav-w` + `--nav-open`（2.36 的收放模型）、下移到顶栏之下；顶栏通栏并为固定的 ☰ 让出位置；侧栏头部收成一行并与顶栏齐平；面包屑会话名归位；侧栏的应用级入口收进设置 |
+| 结构 | 图标轨回到最左并钉住 `--nav-w` + `--nav-open`（2.36 的收放模型）、下移到顶栏之下；顶栏通栏（2.39 起左内边距回到 12px —— 桌面已没有要躲的 ☰，窄窗抽屉形态才让位）；侧栏头部收成一行、搜索钉右侧；面包屑会话名归位；侧栏的应用级入口收进设置 |
 | 密度 | 会话行高 30px、标题单行省略、去掉计数 |
-| 圆角 | 大面 `--r-lg: 18px`（Codex 的大圆角），行填 8px |
+| 圆角 | 大面 `--r-lg` 取 **18px × 包的 `--r-scale`**（Codex 的大圆角；2.39 起乘上包的 corners 配方），行填 8px |
 | 浮层影 | 换成 Codex 实测的菜单影（细描边 + 克制投影），去掉默认 16px/40px 柔光 |
 | 空态 | 幽灵 logo 与标题放大一号 |
-| 顶栏提示 | ☰（展开/隐藏侧栏）官方只有 `aria-label`、没有 `title`，用 `::after` + `[aria-pressed]` 补了一个**随状态切换**的悬停提示（2.36 起 ☰ 是 `.app` 下的 fixed 层，选择器跟着改） |
+| 品牌区 | **2.39 起是官方的图片 lockup**（118×24 wordmark + 9px 副标题），按使用者选择保留原色，本层只把它从"被 26px 裁掉"修回完整两行（34px） |
+| 顶栏提示 | ☰（展开/隐藏侧栏）官方只有 `aria-label`、没有 `title`，用 `::after` + `[aria-pressed]` 补了一个**随状态切换**的悬停提示。（2.36 起它是 `.app` 下的 fixed 层；**2.39 起只在窄窗抽屉形态挂载**，桌面侧栏改由分隔条折叠） |
 | 不藏功能入口 | 曾把顶栏的 `.phone-action`（**设备访问／手机直连**）连同侧栏入口一起隐藏，前者已恢复。**左轨的「会话」图标同理**：2.27–2.35 被本层 `display:none` 藏掉，2.36 起恢复（见 changelog ④）。教训：为了"形似 Codex"而藏入口，除非别处同样可达**且使用者明确同意** |
 
 ### 颜色（主题包负责）
@@ -849,7 +976,7 @@ RX_REPO="$PWD" SHOT_PACK=../../codex-ink/theme-pack/codex-ink/theme.json \
 | 信息色一律保留 | `--cat-1..5` / `--io-*`（用量五段的蓝/橙/绿/黄/粉）、`--net` / `--deleg`（运行 / 委派状态与 `.hostlab` / `.hl .src` 等 host 标签）、`--syn-*`（语法高亮）、`--ok` / `--warn` / `--err`。这些是**信息**不是装饰——压灰会让人分不出哪段是哪段。它们本就不在包的词汇表里（`tokens.go` 注明 "Absent on purpose"），这一层也不动 |
 | 装饰角色 | `--link` / `--brand` / `--halo` / `--label-agent` 由**包**设（2.29 起的装饰角色 token）：theme-pack 里链接保留 Codex 蓝 `#339cff`，品牌色 / 悬停光晕 / 代理名标签收进灰阶 |
 | 硬编码装饰色 | studio.css 浅色下把品牌强调字写死成 `#526a9f`（包够不到，不在令牌体系内）。本层不再自己指定颜色，改成把它接到包的 `brand` 令牌上 —— "零彩色 chrome"由**包**表达，本层只负责"这个元素该用 brand 这一档" |
-| 派生色 | 包词汇表里没有的几样，从包的 token 派生：`--focus` / `--accent-ink` ← `--accent`，`--cx-bubble` ← `--link`（12% / 32%），`--cx-line` ← `--border`（67%） |
+| 派生色 | 包词汇表里没有的那几样，从包的 token 派生：`--focus` ← `--accent`，`--cx-bubble` ← `--link`（12% / 32%），`--cx-line` ← `--border`（67%）。**`--accent-ink` 2.39 起不再由本层另立**：官方新增了 `accentInk` token（包能设、有默认值、theme.ts 还带一条兜底），本层改用官方同一条公式 `color-mix(in srgb, var(--accent) 65%, var(--text))` |
 | 首次开屏 | `.oobe` 是**恒定**近黑（官方注释："the ground is dark whatever the app theme is … a ceremony rather than a screen of the app"）。官方把它写死在 app.css 里、包够不到，本层只把它从带蓝的近黑收成中性近黑 `#0d0d0d`。首次**设置**屏（`.onb-*`）不归本层管 —— 2.36 的 studio.css 自己就接到了 `--text` / `--border` / `--focus` |
 
 色值来源：Codex 实机截图逐像素测量（经 DSH 社区插件
